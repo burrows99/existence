@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
+import { Bloom, EffectComposer } from '@react-three/postprocessing'
+import { MathUtils } from 'three'
 import { CAMERA_DISTANCE, FOV, Layer } from './Layer'
 import { Hud } from './Hud'
 import { SCALES } from './scales'
@@ -16,7 +18,8 @@ export default function App() {
     // trackpad pinch arrives as ctrl+wheel; preventDefault stops the browser zooming the page
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
-      useScale.getState().zoomBy(e.deltaY * (e.ctrlKey ? 0.02 : 0.003))
+      // capped so a hard flick or momentum scroll can't jump tens of decades at once
+      useScale.getState().zoomBy(MathUtils.clamp(e.deltaY * (e.ctrlKey ? 0.02 : 0.003), -0.3, 0.3))
     }
     window.addEventListener('wheel', onWheel, { passive: false })
     return () => window.removeEventListener('wheel', onWheel)
@@ -34,6 +37,9 @@ export default function App() {
           </Layer>
         ))}
         <OrbitControls enableZoom={false} enablePan={false} autoRotate autoRotateSpeed={0.3} />
+        <EffectComposer>
+          <Bloom mipmapBlur luminanceThreshold={1} intensity={1.2} />
+        </EffectComposer>
       </Canvas>
       <Hud />
     </>

@@ -8,7 +8,7 @@ export const FOV = 50
 // scene units spanned by the view height at the origin
 const VIEW = 2 * CAMERA_DISTANCE * Math.tan((FOV / 2) * (Math.PI / 180))
 
-const IN = 1 // visible until the thing is 10× bigger than the view
+const IN = 0.7 // visible until the thing is 5× bigger than the view
 const OUT = 2.5 // and from when it is ~300× smaller than the view
 const FADE = 0.5 // decades spent fading at each end
 
