@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import {
-  AdditiveBlending, BoxGeometry, Color, InstancedMesh, MathUtils, Matrix4, MeshBasicMaterial, MeshStandardMaterial,
-  Quaternion, SphereGeometry, Vector3, type BufferGeometry, type Group, type Material,
+  AdditiveBlending, BoxGeometry, BufferAttribute, BufferGeometry, Color, DynamicDrawUsage, InstancedMesh, MathUtils, Matrix4,
+  MeshBasicMaterial, MeshStandardMaterial, Points, PointsMaterial, Quaternion, SphereGeometry, Vector3, type Group, type Material,
 } from 'three'
 import { ancestry, childrenOf, evict, kindOf, type Far, type Node, type Vec3 } from './tree'
 import { centreIn, root, stepCamera, useCam } from './camera'
@@ -11,6 +11,7 @@ export const CAMERA_DISTANCE = 10
 export const FOV = 50
 const VIEW = 2 * CAMERA_DISTANCE * Math.tan(MathUtils.degToRad(FOV / 2)) // scene units across the view height
 const CAP = 120000 // instances per batch
+const PCAP = 300000 // points (stars, galaxies seen from afar)
 const MAX_VISITS = 300000 // nodes considered per frame
 const FRONT = 0.1, DEPTH = 0.6 // cutaway: draw from just in front of the focus plane to this far behind it, in view heights
 const EVICT_EVERY = 300 // frames
@@ -44,6 +45,14 @@ export function World() {
     haze: batch(new SphereGeometry(0.5, 10, 7), new MeshBasicMaterial({ transparent: true, opacity: 0.08, blending: AdditiveBlending, depthWrite: false, toneMapped: false })),
     cube: batch(new BoxGeometry(), new MeshStandardMaterial({ roughness: 0.8 })),
   }), [])
+  const points = useMemo(() => {
+    const g = new BufferGeometry()
+    g.setAttribute('position', new BufferAttribute(new Float32Array(PCAP * 3), 3).setUsage(DynamicDrawUsage))
+    g.setAttribute('color', new BufferAttribute(new Float32Array(PCAP * 3), 3).setUsage(DynamicDrawUsage))
+    const p = new Points(g, new PointsMaterial({ size: 2.5, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.9, blending: AdditiveBlending, depthWrite: false, toneMapped: false }))
+    p.frustumCulled = false
+    return p
+  }, [])
   const nearRefs = useRef(new Map<string, Group>())
   const [near, setNear] = useState<Node[]>([])
   const nearKey = useRef('')
@@ -110,11 +119,20 @@ export function World() {
     }
 
     for (const b of Object.values(batches)) b.count = 0
+    let pc = 0
+    const ppos = points.geometry.getAttribute('position') as BufferAttribute, pcol = points.geometry.getAttribute('color') as BufferAttribute
     const nearList: NearEntry[] = []
     const m = new Matrix4(), q = new Quaternion(), p = new Vector3(), sc = new Vector3()
     let visited = 0
 
     const put = (far: Far, rel: Vec3, diameter: number) => {
+      if (far.shape === 'point') {
+        if (pc >= PCAP) return
+        ppos.setXYZ(pc, rel[0] * k, rel[1] * k, rel[2] * k)
+        const c = colorOf(far.color, true), a = (far.alpha ?? 1) / 2.5
+        pcol.setXYZ(pc++, c.r * a, c.g * a, c.b * a)
+        return
+      }
       const b = far.glow ? batches.glow : far.shape === 'box' ? batches.box : far.shape === 'haze' ? batches.haze : far.shape === 'cube' ? batches.cube : batches.solid
       if (b.count >= CAP) return
       const d = Math.max(diameter * k * (far.scale ?? (far.shape === 'haze' ? 0.7 : 1)), far.minPx ? (far.minPx * VIEW) / size.height : 0)
@@ -179,6 +197,9 @@ export function World() {
       b.instanceMatrix.needsUpdate = true
       if (b.instanceColor) b.instanceColor.needsUpdate = true
     }
+    points.geometry.setDrawRange(0, pc)
+    ppos.needsUpdate = true
+    pcol.needsUpdate = true
     for (const e of nearList) {
       const g = nearRefs.current.get(e.node.key)
       g?.position.set(e.rel[0] * k, e.rel[1] * k, e.rel[2] * k)
@@ -189,7 +210,7 @@ export function World() {
       nearKey.current = key
       setNear(nearList.map(e => e.node))
     }
-    if (import.meta.env.DEV) Object.assign(window, { __perf: { ms: performance.now() - t0, visited, counts: Object.fromEntries(Object.entries(batches).map(([k, b]) => [k, b.count])), near: nearList.length } })
+    if (import.meta.env.DEV) Object.assign(window, { __perf: { ms: performance.now() - t0, visited, counts: { ...Object.fromEntries(Object.entries(batches).map(([k, b]) => [k, b.count])), points: pc }, near: nearList.length } })
 
     // apply this frame's scrolling, aimed at what the pick found
     const wh = wheel.current
@@ -212,6 +233,7 @@ export function World() {
   return (
     <>
       {Object.values(batches).map(b => <primitive key={b.uuid} object={b} />)}
+      <primitive object={points} />
       {near.map(n => {
         const Near = kindOf(n.kind)!.Near!
         return (

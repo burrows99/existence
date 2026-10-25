@@ -22,10 +22,11 @@ export type Node = {
 export type ChildSpec = { kind: string; pos: Vec3; size: number; props?: Props }
 
 export type Far = {
-  shape: 'sphere' | 'box' | 'haze' | 'cube'
+  shape: 'sphere' | 'box' | 'haze' | 'cube' | 'point'
   color: string
   scale?: number // drawn this fraction of the node's size (a cell is smaller than its cube)
   pos?: Vec3 // offset in node units, for a closed node drawn as several things (a sample of what it holds)
+  alpha?: number // brightness of a point, for a sample that stands in for many
   glow?: boolean // pushed past 1 so Bloom catches it
   minPx?: number // point-like: never drawn smaller than this
 }
@@ -75,6 +76,8 @@ export function randomRotation(rng: () => number) {
 const matter = () => import('../kinds/matter')
 const atom = () => import('../kinds/atom')
 const LOADERS: Record<string, () => Promise<{ kinds: Record<string, Kind> }>> = {
+  universe: () => import('../kinds/universe'),
+  galaxy: () => import('../kinds/galaxy'),
   solar: () => import('../kinds/solar'),
   star: () => import('../kinds/star'),
   planet: () => import('../kinds/planet'),

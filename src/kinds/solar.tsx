@@ -50,7 +50,7 @@ const solar: Volume = {
   placeDepth: () => 0,
   placements: () => bodies(),
   fill: () => [],
-  far: () => null,
+  far: r => (r.depth === 0 ? { shape: 'sphere', color: '#fff3dc', glow: true, scale: (2.2 * SUN_R) / SIDE, minPx: 3 } : null),
   Near: Orbits,
   info: () => ({ title: 'Solar system', fact: `The Sun and its planets as they are today (${EPOCH.toISOString().slice(0, 10)}): Neptune’s orbit is 60 AU across, 9 billion km, and almost all of it is empty.` }),
 }
