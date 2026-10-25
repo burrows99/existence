@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import { Placeholder } from './layers/Placeholder'
 import { Atom, Nucleus, Proton, Quark } from './layers/Subatomic'
+import { Cell, Dna, Virus } from './layers/Biology'
 
 export type Scale = {
   id: string
@@ -26,11 +27,11 @@ export const SCALES: Scale[] = [
     fact: '6 protons and 6 neutrons. Holds 99.97% of the atom’s mass in a quadrillionth of its volume.' },
   { id: 'atom', size: -10, label: 'Hydrogen atom', color: '#48dbfb', Component: Atom,
     fact: 'One electron in a probability cloud about 0.1 nm across. Almost entirely empty space.' },
-  { id: 'dna', size: -8.7, label: 'DNA', color: '#1dd1a1', Component: Placeholder,
+  { id: 'dna', size: -8.7, label: 'DNA', color: '#1dd1a1', Component: Dna,
     fact: 'The double helix is 2 nm wide. Unwound, one cell’s DNA would be about 2 m long.' },
-  { id: 'virus', size: -7, label: 'Virus', color: '#ff6b81', Component: Placeholder,
-    fact: 'An influenza virus is about 100 nm: a protein shell around a few genes.' },
-  { id: 'cell', size: -4.7, label: 'Human cell', color: '#f368e0', Component: Placeholder,
+  { id: 'virus', size: -7, label: 'Virus', color: '#ff6b81', Component: Virus,
+    fact: 'An influenza virus is about 100 nm: a fatty envelope studded with protein spikes, wrapped around 8 strands of RNA.' },
+  { id: 'cell', size: -4.7, label: 'Human cell', color: '#f368e0', Component: Cell,
     fact: 'About 20 µm. You are made of roughly 37 trillion of them.' },
   { id: 'human', size: 0.24, label: 'Human', color: '#c8d6e5', Component: Placeholder,
     fact: 'About 1.7 m tall, right in the middle of the scale of everything.' },
