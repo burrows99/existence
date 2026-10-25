@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
+import { Bloom, EffectComposer } from '@react-three/postprocessing'
 import { CAMERA_DISTANCE, FOV, Layer } from './Layer'
 import { Hud } from './Hud'
 import { SCALES } from './scales'
@@ -34,6 +35,9 @@ export default function App() {
           </Layer>
         ))}
         <OrbitControls enableZoom={false} enablePan={false} autoRotate autoRotateSpeed={0.3} />
+        <EffectComposer>
+          <Bloom mipmapBlur luminanceThreshold={1} intensity={1.2} />
+        </EffectComposer>
       </Canvas>
       <Hud />
     </>
