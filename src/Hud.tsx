@@ -13,6 +13,11 @@ const UNITS: [number, string][] = [
   [1e-9, 'nm'],
   [1e-12, 'pm'],
   [1e-15, 'fm'],
+  [1e-18, 'am'],
+  [1e-21, 'zm'],
+  [1e-24, 'ym'],
+  [1e-27, 'rm'],
+  [1e-30, 'qm'],
 ]
 
 const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹'
@@ -48,7 +53,7 @@ export function Hud() {
     <>
       <div className="hud">
         <div className="size">{scientific(zoom)}</div>
-        <div className="friendly">{friendly(zoom) ?? 'smaller than anything measured'}</div>
+        <div className="friendly">{friendly(zoom) ?? 'below the smallest SI unit'}</div>
         {inRange ? (
           <div className="info">
             <h1>

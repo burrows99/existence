@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import { Placeholder } from './layers/Placeholder'
+import { Atom, Nucleus, Proton, Quark } from './layers/Subatomic'
 
 export type Scale = {
   id: string
@@ -17,13 +18,13 @@ export const MAX_ZOOM = 27.5
 export const SCALES: Scale[] = [
   { id: 'planck', size: -34.8, label: 'Planck length', color: '#b48cff', speculative: true, Component: Placeholder,
     fact: '1.6 × 10⁻³⁵ m. Below this, known physics stops working. Theoretical, never observed.' },
-  { id: 'quark', size: -17.4, label: 'Quarks', color: '#ff5a5a', Component: Placeholder,
+  { id: 'quark', size: -17.4, label: 'Quarks', color: '#ff5a5a', Component: Quark,
     fact: 'No measured size: they behave as points. Experiments say a quark is smaller than 4 × 10⁻¹⁸ m.' },
-  { id: 'proton', size: -14.8, label: 'Proton', color: '#ff9f43', Component: Placeholder,
+  { id: 'proton', size: -14.8, label: 'Proton', color: '#ff9f43', Component: Proton,
     fact: 'Three quarks (up, up, down) held by gluons. About 1.7 femtometres across.' },
-  { id: 'nucleus', size: -14.2, label: 'Carbon nucleus', color: '#feca57', Component: Placeholder,
-    fact: '6 protons and 6 neutrons. Holds 99.97% of the atom’s mass in a trillionth of its volume.' },
-  { id: 'atom', size: -10, label: 'Hydrogen atom', color: '#48dbfb', Component: Placeholder,
+  { id: 'nucleus', size: -14.2, label: 'Carbon nucleus', color: '#feca57', Component: Nucleus,
+    fact: '6 protons and 6 neutrons. Holds 99.97% of the atom’s mass in a quadrillionth of its volume.' },
+  { id: 'atom', size: -10, label: 'Hydrogen atom', color: '#48dbfb', Component: Atom,
     fact: 'One electron in a probability cloud about 0.1 nm across. Almost entirely empty space.' },
   { id: 'dna', size: -8.7, label: 'DNA', color: '#1dd1a1', Component: Placeholder,
     fact: 'The double helix is 2 nm wide. Unwound, one cell’s DNA would be about 2 m long.' },

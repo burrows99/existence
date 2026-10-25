@@ -11,9 +11,12 @@ type ScaleState = {
   step: (dt: number) => void
 }
 
+// deep link: #z=-14.2 opens at that scale
+const start = MathUtils.clamp(Number(location.hash.match(/z=(-?[\d.]+)/)?.[1] ?? 0.24), MIN_ZOOM, MAX_ZOOM)
+
 export const useScale = create<ScaleState>((set, get) => ({
-  zoom: 0.24,
-  target: 0.24,
+  zoom: start,
+  target: start,
   zoomTo: target => set({ target: MathUtils.clamp(target, MIN_ZOOM, MAX_ZOOM) }),
   zoomBy: decades => get().zoomTo(get().target + decades),
   step: dt => {
