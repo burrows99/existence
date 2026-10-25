@@ -1,9 +1,11 @@
 html, body, #root { margin: 0; height: 100%; background: #05060a; overflow: hidden; }
 body { font-family: system-ui, sans-serif; color: #e8ecf4; }
 
+.hud, .ruler { text-shadow: 0 0 8px #000, 0 1px 3px #000; }
 .hud { position: fixed; top: 24px; left: 24px; max-width: min(360px, calc(100vw - 180px)); pointer-events: none; }
 .hud .size { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.hud .friendly { opacity: 0.6; margin-bottom: 16px; }
+.hud .friendly { opacity: 0.6; margin-bottom: 10px; }
+.hud .path { font-size: 12px; opacity: 0.55; margin-bottom: 12px; }
 .hud h1 { font-size: 20px; margin: 0 0 6px; }
 .hud p { margin: 0; line-height: 1.45; opacity: 0.85; }
 .hud .tag { font-size: 11px; font-weight: 500; margin-left: 8px; padding: 2px 6px; border: 1px solid #b48cff; color: #b48cff; border-radius: 4px; vertical-align: middle; }

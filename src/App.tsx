@@ -1,44 +1,30 @@
 import { useEffect } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { Bloom, EffectComposer } from '@react-three/postprocessing'
-import { MathUtils } from 'three'
-import { CAMERA_DISTANCE, FOV, Layer } from './Layer'
+import { CAMERA_DISTANCE, FOV, World } from './engine/World'
+import { useCam } from './engine/camera'
 import { Hud } from './Hud'
-import { SCALES } from './scales'
-import { useScale } from './store'
-
-function ZoomDriver() {
-  useFrame((_, dt) => useScale.getState().step(dt))
-  return null
-}
 
 export default function App() {
+  // the URL is the location: #at=<node path>&f=<focus>&z=<zoom>
   useEffect(() => {
-    // trackpad pinch arrives as ctrl+wheel; preventDefault stops the browser zooming the page
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      // capped so a hard flick or momentum scroll can't jump tens of decades at once
-      useScale.getState().zoomBy(MathUtils.clamp(e.deltaY * (e.ctrlKey ? 0.02 : 0.003), -0.3, 0.3))
-    }
-    window.addEventListener('wheel', onWheel, { passive: false })
-    return () => window.removeEventListener('wheel', onWheel)
+    const id = setInterval(() => {
+      const { node, focus, zoom, pending } = useCam.getState()
+      if (!pending) history.replaceState(null, '', `#at=${node.key}&f=${focus.map(v => v.toFixed(4))}&z=${zoom.toFixed(2)}`)
+    }, 500)
+    return () => clearInterval(id)
   }, [])
 
   return (
     <>
-      <Canvas camera={{ position: [0, 0, CAMERA_DISTANCE], fov: FOV, near: 0.01, far: 1000 }}>
-        <ZoomDriver />
-        <ambientLight intensity={0.4} />
-        <directionalLight position={[5, 5, 5]} />
-        {SCALES.map(({ id, size, color, Component }) => (
-          <Layer key={id} size={size}>
-            <Component color={color} />
-          </Layer>
-        ))}
-        <OrbitControls enableZoom={false} enablePan={false} autoRotate autoRotateSpeed={0.3} />
+      <Canvas camera={{ position: [0, 0, CAMERA_DISTANCE], fov: FOV, near: 0.05, far: 5000 }}>
+        <ambientLight intensity={0.6} />
+        <directionalLight position={[5, 8, 10]} intensity={2} />
+        <World />
+        <OrbitControls enableZoom={false} enablePan={false} />
         <EffectComposer>
-          <Bloom mipmapBlur luminanceThreshold={1} intensity={1.2} />
+          <Bloom mipmapBlur luminanceThreshold={1} intensity={1} />
         </EffectComposer>
       </Canvas>
       <Hud />
