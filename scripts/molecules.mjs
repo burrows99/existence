@@ -14,6 +14,11 @@ const MOLECULES = [
     fact: 'Adenosine triphosphate, the energy currency of every cell. Snapping off its last phosphate releases the energy that powers almost everything a cell does.' },
   { id: '5793', name: 'Glucose', color: '#ff9ff3', src: 'pubchem',
     fact: 'C₆H₁₂O₆, the sugar your cells burn. Blood carries about a teaspoon of it at any moment.' },
+  // lipids: oriented head-up (+Y) so membranes can stand them along the surface normal
+  { id: 'POV', name: 'Phospholipid (POPC)', color: '#f5cd79', src: 'ccd', lipid: true, head: 15,
+    fact: 'A phosphatidylcholine: a charged phosphate head that loves water and two fatty-acid tails that hate it. Billions of them, tails inward, make every membrane in you.' },
+  { id: 'CLR', name: 'Cholesterol', color: '#e8c872', src: 'ccd', lipid: true, head: 8,
+    fact: 'Four stiff carbon rings wedged between the phospholipids. About a third of the lipids in an animal cell membrane are cholesterol, which keeps the membrane firm.' },
 ]
 
 const elements = JSON.parse(await readFile(new URL('../src/data/elements.json', import.meta.url), 'utf8'))
@@ -40,21 +45,45 @@ function parseSdf(text) {
   })
 }
 
+const dist = (a, b) => Math.hypot(a[1] - b[1], a[2] - b[2], a[3] - b[3])
+const norm = v => { const l = Math.hypot(...v); return v.map(x => x / l) }
+
 await mkdir(new URL('../public/data/molecules/', import.meta.url), { recursive: true })
 const index = []
 for (const m of MOLECULES) {
-  const url = m.src === 'pdb'
-    ? `https://files.rcsb.org/download/${m.id}.pdb`
+  const url = m.src === 'pdb' ? `https://files.rcsb.org/download/${m.id}.pdb`
+    : m.src === 'ccd' ? `https://files.rcsb.org/ligands/download/${m.id}_ideal.sdf`
     : `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${m.id}/SDF?record_type=3d`
   const text = await (await fetch(url)).text()
   const atoms = m.src === 'pdb' ? parsePdb(text) : parseSdf(text)
   const c = [1, 2, 3].map(i => atoms.reduce((a, p) => a + p[i], 0) / atoms.length)
+  for (const a of atoms) for (let i = 1; i <= 3; i++) a[i] -= c[i - 1]
+  const out = { id: m.id, name: m.name, fact: m.fact, color: m.color, diameter: 0, atoms }
+  if (m.lipid) {
+    // head = first atom of the head element; tail end = the heavy atom farthest from it; rotate head−tail onto +Y
+    const H = atoms.find(a => a[0] === m.head)
+    const T = atoms.filter(a => a[0] !== 1).reduce((b, a) => (dist(a, H) > dist(b, H) ? a : b))
+    const ax = norm([H[1] - T[1], H[2] - T[2], H[3] - T[3]])
+    const v = [-ax[2], 0, ax[0]], s = Math.hypot(...v), cth = ax[1] // ax × ŷ, |ax × ŷ|, ax · ŷ
+    const k = (1 - cth) / (s * s)
+    const R = [
+      [1 + k * (-v[2] * v[2] - v[1] * v[1]), -v[2] + k * v[0] * v[1], v[1] + k * v[0] * v[2]],
+      [v[2] + k * v[0] * v[1], 1 + k * (-v[2] * v[2] - v[0] * v[0]), -v[0] + k * v[1] * v[2]],
+      [-v[1] + k * v[0] * v[2], v[0] + k * v[1] * v[2], 1 + k * (-v[1] * v[1] - v[0] * v[0])],
+    ]
+    for (const a of atoms) {
+      const [x, y, z] = [a[1], a[2], a[3]]
+      for (let i = 0; i < 3; i++) a[i + 1] = R[i][0] * x + R[i][1] * y + R[i][2] * z
+    }
+    out.head = [H[1], H[2], H[3]].map(x => +x.toFixed(2))
+    out.tail = [T[1], T[2], T[3]].map(x => +x.toFixed(2))
+  }
   let radius = 0
   for (const a of atoms) {
-    for (let i = 1; i <= 3; i++) a[i] = +(a[i] - c[i - 1]).toFixed(2)
+    for (let i = 1; i <= 3; i++) a[i] = +a[i].toFixed(2)
     radius = Math.max(radius, Math.hypot(a[1], a[2], a[3]) + elements[a[0] - 1][6] / 100)
   }
-  const out = { id: m.id, name: m.name, fact: m.fact, color: m.color, diameter: +(2 * radius).toFixed(2), atoms }
+  out.diameter = +(2 * radius).toFixed(2)
   await writeFile(new URL(`../public/data/molecules/${m.id}.json`, import.meta.url), JSON.stringify(out))
   index.push({ id: m.id, name: m.name, atoms: atoms.length, diameter: out.diameter })
   console.log(`${m.name}: ${atoms.length} atoms, ${out.diameter} Å across`)

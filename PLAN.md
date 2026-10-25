@@ -93,7 +93,7 @@ Each phase is one PR against `main`, merged = live on https://burrows99.github.i
 |-------|----------|
 | **A. Engine + matter** ✅ | Node tree, float64 hierarchical camera, zoom-to-cursor anywhere, lazy kinds, seeded RNG. Content: a box of liquid water → H₂O → atoms → nucleus + electrons (real orbitals, all 118 elements supported) → protons/neutrons → quarks. |
 | **B. Molecules of life** ✅ | Real structures that include hydrogens (NMR entries 1MYF myoglobin, 2HIU insulin, 1NAJ B-DNA; PubChem 3D ATP and glucose), one per 14.9 nm of water, each decomposing into its real atoms. `scripts/molecules.mjs` regenerates the data. No lipids yet: PubChem has no 3D conformers for phospholipids, so membranes (Phase C) will need a built lipid. |
-| **C. Cell** | Membrane (lipid bilayer region), cytoplasm regions packed at real concentrations, nucleus with chromatin, mitochondria, ribosomes. Several cell types. |
+| **C. Cell** ✅ | A muscle cell (drawn round): every membrane (cell, nucleus, 600 mitochondria) is a real bilayer of POPC + 30% cholesterol from the PDB component dictionary; cytosol with myoglobin/ATP/glucose, nucleus with DNA segments at the real density, mitochondrial matrix with mtDNA. Built on a generic `volume` (octree whose contents are a function of absolute position, with placements and exclusions). Not yet: histones, membrane proteins, cristae, ribosomes, other cell types. |
 | **D. Body** | Anatomical human made of organs → tissues → cells (skin, blood, muscle, neurons…). |
 | **E. Earth** | Surface region containing the human; Earth's layers (crust, mantle, core, ocean, atmosphere), each made of the right materials. |
 | **F. Solar system + stars** | Real planets and orbits; HYG stars + procedural stars, each star openable. |

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import {
-  BoxGeometry, Color, InstancedMesh, MathUtils, Matrix4, MeshBasicMaterial, MeshStandardMaterial,
+  AdditiveBlending, BoxGeometry, Color, InstancedMesh, MathUtils, Matrix4, MeshBasicMaterial, MeshStandardMaterial,
   Quaternion, SphereGeometry, Vector3, type BufferGeometry, type Group, type Material,
 } from 'three'
 import { ancestry, childrenOf, evict, kindOf, type Far, type Node, type Vec3 } from './tree'
@@ -10,8 +10,8 @@ import { centreIn, root, stepCamera, useCam } from './camera'
 export const CAMERA_DISTANCE = 10
 export const FOV = 50
 const VIEW = 2 * CAMERA_DISTANCE * Math.tan(MathUtils.degToRad(FOV / 2)) // scene units across the view height
-const CAP = 60000 // instances per batch
-const MAX_VISITS = 200000 // nodes considered per frame
+const CAP = 120000 // instances per batch
+const MAX_VISITS = 300000 // nodes considered per frame
 const FRONT = 0.1, DEPTH = 0.6 // cutaway: draw from just in front of the focus plane to this far behind it, in view heights
 const EVICT_EVERY = 300 // frames
 const SNAP = 24 // px: scrolling near a tiny thing still targets it
@@ -38,9 +38,10 @@ type Pick = { solid?: Node; solidZ: number; open?: Node; openR: number; near?: N
 export function World() {
   const { camera, gl, size } = useThree()
   const batches = useMemo(() => ({
-    solid: batch(new SphereGeometry(0.5, 24, 16), new MeshStandardMaterial({ roughness: 0.45 })),
+    solid: batch(new SphereGeometry(0.5, 12, 8), new MeshStandardMaterial({ roughness: 0.45 })), // ponytail: one LOD; tens of thousands on screen
     glow: batch(new SphereGeometry(0.5, 12, 8), new MeshBasicMaterial({ toneMapped: false })),
     box: batch(new BoxGeometry(), new MeshStandardMaterial({ transparent: true, opacity: 0.08, depthWrite: false })),
+    haze: batch(new SphereGeometry(0.5, 10, 7), new MeshBasicMaterial({ transparent: true, opacity: 0.08, blending: AdditiveBlending, depthWrite: false, toneMapped: false })),
   }), [])
   const nearRefs = useRef(new Map<string, Group>())
   const [near, setNear] = useState<Node[]>([])
@@ -74,6 +75,7 @@ export function World() {
   }, [gl])
 
   useFrame(({ clock }, dt) => {
+    const t0 = performance.now()
     stepCamera(dt)
     const { node, focus, zoom } = useCam.getState()
     const f = ++frame.current
@@ -112,9 +114,9 @@ export function World() {
     let visited = 0
 
     const put = (far: Far, rel: Vec3, diameter: number) => {
-      const b = far.glow ? batches.glow : far.shape === 'box' ? batches.box : batches.solid
+      const b = far.glow ? batches.glow : far.shape === 'box' ? batches.box : far.shape === 'haze' ? batches.haze : batches.solid
       if (b.count >= CAP) return
-      const d = Math.max(diameter * k, far.minPx ? (far.minPx * VIEW) / size.height : 0)
+      const d = Math.max(diameter * k * (far.shape === 'haze' ? 0.7 : 1), far.minPx ? (far.minPx * VIEW) / size.height : 0)
       b.setMatrixAt(b.count, m.compose(p.set(rel[0] * k, rel[1] * k, rel[2] * k), q, sc.set(d, d, d)))
       b.setColorAt(b.count++, colorOf(far.color, far.glow))
     }
@@ -129,8 +131,8 @@ export function World() {
       const y = rel[0] * up.x + rel[1] * up.y + rel[2] * up.z
       const z = rel[0] * back.x + rel[1] * back.y + rel[2] * back.z
       // cutaway: cull what is in front of the focus plane, except point-like things, which never occlude
-      const far = (n.far ??= kind.far(n))
-      if (Math.abs(x) - r > halfW || Math.abs(y) - r > halfH || -z - r > depth || (z - r > front && !far.minPx)) return
+      const far = n.far === undefined ? (n.far = kind.far(n)) : n.far
+      if (Math.abs(x) - r > halfW || Math.abs(y) - r > halfH || -z - r > depth || (z - r > front && !far?.minPx)) return
       n.seen = f
 
       // where this lands on screen, for picking
@@ -139,10 +141,11 @@ export function World() {
       const rpx = (s / 2) * per
 
       const span = s / w
-      if (kind.children && span > (kind.open ?? 0.3)) {
+      const openAt = typeof kind.open === 'function' ? kind.open(n) : kind.open ?? 0.3
+      if (kind.children && span > openAt) {
         const kids = childrenOf(n)
         if (!kids.length) return // empty (or not loaded yet): draw nothing
-        if (per && d2 < rpx * rpx && rpx < pick.openR) { pick.open = n; pick.openR = rpx }
+        if (per && !kind.space && d2 < rpx * rpx && rpx < pick.openR) { pick.open = n; pick.openR = rpx }
         for (const c of kids) {
           const a = onPath.has(c.key) ? 0 : (kindOf(c.kind)?.jitter ?? 0) / node.metres
           draw(c, [
@@ -151,10 +154,10 @@ export function World() {
             o[2] + s * c.pos[2] + (a && a * Math.sin(t * 3.7 + ((c.seed >> 16) & 255))),
           ], s * c.size)
         }
-        if (kind.Near && span > (kind.near ?? kind.open ?? 0.3)) nearList.push({ node: n, rel, s })
+        if (kind.Near && (kind.nearFor?.(n) ?? true) && span > (kind.near ?? openAt) && span < (kind.nearMax ?? Infinity)) nearList.push({ node: n, rel, s })
         return
       }
-      if (!far.minPx && s * pxPerUnit < 0.5) return // sub-pixel
+      if (!far || (!far.minPx && s * pxPerUnit < 0.5)) return // empty space, or sub-pixel
       if (per) {
         const rr = Math.max(rpx, (far.minPx ?? 0) / 2)
         if (d2 < rr * rr && z > pick.solidZ) { pick.solid = n; pick.solidZ = z }
@@ -178,6 +181,7 @@ export function World() {
       nearKey.current = key
       setNear(nearList.map(e => e.node))
     }
+    if (import.meta.env.DEV) Object.assign(window, { __perf: { ms: performance.now() - t0, visited, counts: Object.fromEntries(Object.entries(batches).map(([k, b]) => [k, b.count])), near: nearList.length } })
 
     // apply this frame's scrolling, aimed at what the pick found
     const wh = wheel.current

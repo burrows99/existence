@@ -15,14 +15,14 @@ export type Node = {
   size: number // diameter, in parent units
   metres: number // diameter, in metres
   children?: Node[]
-  far?: Far
+  far?: Far | null
   seen?: number // last frame this node was drawn; stale subtrees get evicted
 }
 
 export type ChildSpec = { kind: string; pos: Vec3; size: number; props?: Props }
 
 export type Far = {
-  shape: 'sphere' | 'box'
+  shape: 'sphere' | 'box' | 'haze'
   color: string
   glow?: boolean // pushed past 1 so Bloom catches it
   minPx?: number // point-like: never drawn smaller than this
@@ -31,10 +31,13 @@ export type Far = {
 export type Kind = {
   // deterministic in node.seed: the same node always regenerates the same contents
   children?: (node: Node, rng: () => number) => ChildSpec[]
-  far: (node: Node) => Far
+  far: (node: Node) => Far | null // null: draw nothing when closed (empty space)
   Near?: ComponentType<{ node: Node }> // detail drawn in node units while the node is open
-  open?: number // fraction of the view height a node must span to open into its children (default 0.3)
+  nearFor?: (node: Node) => boolean // which nodes of this kind get a Near (default: all)
+  open?: number | ((node: Node) => number) // fraction of the view height a node must span to open (default 0.3)
   near?: number // same, for Near (default: open)
+  nearMax?: number // and no Near once the node spans more than this many views (deep inside it)
+  space?: boolean // just a region of space: never something to lock on to
   jitter?: number // thermal / confinement motion amplitude, metres
   info: (node: Node) => { title: string; fact?: string }
 }
@@ -69,7 +72,8 @@ export function randomRotation(rng: () => number) {
 const matter = () => import('../kinds/matter')
 const atom = () => import('../kinds/atom')
 const LOADERS: Record<string, () => Promise<{ kinds: Record<string, Kind> }>> = {
-  water: matter, h2o: matter,
+  cell: () => import('../kinds/cell'),
+  h2o: matter,
   molecule: () => import('../kinds/molecule'),
   atom, electron: atom, nucleus: atom, nucleon: atom, quark: atom,
 }
