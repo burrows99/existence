@@ -26,9 +26,9 @@ export const maxZoom = () => Math.log10(root.metres * 3)
 function parseHash(): NonNullable<Cam['pending']> {
   const h = new URLSearchParams(location.hash.slice(1))
   return {
-    key: h.get('at') ?? root.key,
-    focus: (h.get('f') ?? '0.0131,0.0217,0.0173').split(',').map(Number) as Vec3, // default is off the octree seams
-    zoom: MathUtils.clamp(Number(h.get('z') ?? -8.6), MIN_ZOOM, maxZoom()),
+    key: h.get('at') ?? 'w.7.0.0.8', // the biomolecule in one of the 14.9 nm regions
+    focus: (h.get('f') ?? '0,0,0').split(',').map(Number) as Vec3,
+    zoom: MathUtils.clamp(Number(h.get('z') ?? -8.4), MIN_ZOOM, maxZoom()),
   }
 }
 

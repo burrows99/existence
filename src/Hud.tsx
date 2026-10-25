@@ -1,5 +1,6 @@
 import { MIN_ZOOM, maxZoom, useCam } from './engine/camera'
-import { ancestry, kindOf } from './engine/tree'
+import { useSyncExternalStore } from 'react'
+import { ancestry, kindOf, kindsLoaded, subscribeKinds } from './engine/tree'
 
 const UNITS: [number, string][] = [
   [9.461e24, 'billion light-years'],
@@ -35,6 +36,7 @@ export function Hud() {
   const node = useCam(s => s.node)
   const zoom = useCam(s => s.zoom)
   const zoomTo = useCam(s => s.zoomTo)
+  useSyncExternalStore(subscribeKinds, kindsLoaded)
   const path = ancestry(node).map(n => ({ n, title: kindOf(n.kind)?.info(n).title ?? '…' }))
   const info = kindOf(node.kind)?.info(node)
   // collapse runs of the same title (the water octree), keeping the smallest

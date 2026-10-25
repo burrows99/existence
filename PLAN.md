@@ -92,7 +92,7 @@ Each phase is one PR against `main`, merged = live on https://burrows99.github.i
 | Phase | Delivers |
 |-------|----------|
 | **A. Engine + matter** ✅ | Node tree, float64 hierarchical camera, zoom-to-cursor anywhere, lazy kinds, seeded RNG. Content: a box of liquid water → H₂O → atoms → nucleus + electrons (real orbitals, all 118 elements supported) → protons/neutrons → quarks. |
-| **B. Molecules of life** | PDB-backed proteins, DNA, lipids; molecules decompose into their real atoms. |
+| **B. Molecules of life** ✅ | Real structures that include hydrogens (NMR entries 1MYF myoglobin, 2HIU insulin, 1NAJ B-DNA; PubChem 3D ATP and glucose), one per 14.9 nm of water, each decomposing into its real atoms. `scripts/molecules.mjs` regenerates the data. No lipids yet: PubChem has no 3D conformers for phospholipids, so membranes (Phase C) will need a built lipid. |
 | **C. Cell** | Membrane (lipid bilayer region), cytoplasm regions packed at real concentrations, nucleus with chromatin, mitochondria, ribosomes. Several cell types. |
 | **D. Body** | Anatomical human made of organs → tissues → cells (skin, blood, muscle, neurons…). |
 | **E. Earth** | Surface region containing the human; Earth's layers (crust, mantle, core, ocean, atmosphere), each made of the right materials. |

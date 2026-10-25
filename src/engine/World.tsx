@@ -141,19 +141,18 @@ export function World() {
       const span = s / w
       if (kind.children && span > (kind.open ?? 0.3)) {
         const kids = childrenOf(n)
-        if (kids.length) {
-          if (per && d2 < rpx * rpx && rpx < pick.openR) { pick.open = n; pick.openR = rpx }
-          for (const c of kids) {
-            const a = onPath.has(c.key) ? 0 : (kindOf(c.kind)?.jitter ?? 0) / node.metres
-            draw(c, [
-              o[0] + s * c.pos[0] + (a && a * Math.sin(t * 3.1 + (c.seed & 255))),
-              o[1] + s * c.pos[1] + (a && a * Math.sin(t * 2.7 + ((c.seed >> 8) & 255))),
-              o[2] + s * c.pos[2] + (a && a * Math.sin(t * 3.7 + ((c.seed >> 16) & 255))),
-            ], s * c.size)
-          }
-          if (kind.Near && span > (kind.near ?? kind.open ?? 0.3)) nearList.push({ node: n, rel, s })
-          return
+        if (!kids.length) return // empty (or not loaded yet): draw nothing
+        if (per && d2 < rpx * rpx && rpx < pick.openR) { pick.open = n; pick.openR = rpx }
+        for (const c of kids) {
+          const a = onPath.has(c.key) ? 0 : (kindOf(c.kind)?.jitter ?? 0) / node.metres
+          draw(c, [
+            o[0] + s * c.pos[0] + (a && a * Math.sin(t * 3.1 + (c.seed & 255))),
+            o[1] + s * c.pos[1] + (a && a * Math.sin(t * 2.7 + ((c.seed >> 8) & 255))),
+            o[2] + s * c.pos[2] + (a && a * Math.sin(t * 3.7 + ((c.seed >> 16) & 255))),
+          ], s * c.size)
         }
+        if (kind.Near && span > (kind.near ?? kind.open ?? 0.3)) nearList.push({ node: n, rel, s })
+        return
       }
       if (!far.minPx && s * pxPerUnit < 0.5) return // sub-pixel
       if (per) {

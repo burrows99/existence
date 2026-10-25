@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import { Quaternion } from 'three'
 
 export type Vec3 = [number, number, number]
 export type Props = Record<string, number | string>
@@ -56,25 +57,43 @@ export function mulberry32(seed: number) {
   }
 }
 
+// uniformly random orientation (Shoemake)
+export function randomRotation(rng: () => number) {
+  const [u1, u2, u3] = [rng(), rng(), rng()]
+  const a = Math.sqrt(1 - u1), b = Math.sqrt(u1)
+  return new Quaternion(a * Math.sin(2 * Math.PI * u2), a * Math.cos(2 * Math.PI * u2), b * Math.sin(2 * Math.PI * u3), b * Math.cos(2 * Math.PI * u3))
+}
+
 // ---- lazily loaded kinds -----------------------------------------------------
 
 const matter = () => import('../kinds/matter')
 const atom = () => import('../kinds/atom')
 const LOADERS: Record<string, () => Promise<{ kinds: Record<string, Kind> }>> = {
   water: matter, h2o: matter,
+  molecule: () => import('../kinds/molecule'),
   atom, electron: atom, nucleus: atom, nucleon: atom, quark: atom,
 }
 
 const kinds: Record<string, Kind> = {}
 const loading = new Set<string>()
+const listeners = new Set<() => void>()
+let loaded = 0
 
 export function kindOf(id: string): Kind | undefined {
   if (!kinds[id] && !loading.has(id)) {
     loading.add(id)
-    LOADERS[id]().then(m => Object.assign(kinds, m.kinds))
+    LOADERS[id]().then(m => {
+      Object.assign(kinds, m.kinds)
+      loaded++
+      listeners.forEach(cb => cb())
+    })
   }
   return kinds[id]
 }
+
+// for React: re-render when a kind module arrives
+export const subscribeKinds = (cb: () => void) => (listeners.add(cb), () => void listeners.delete(cb))
+export const kindsLoaded = () => loaded
 
 export function childrenOf(node: Node): Node[] {
   if (node.children) return node.children
