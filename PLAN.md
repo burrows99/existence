@@ -1,145 +1,101 @@
-# Existence: plan
+# Existence: plan v2
 
-A single continuous zoom from the smallest things known to physics up to the observable universe, built with React + three.js. Multiple universes come later.
-
-## What "smallest" means here
-
-- **Quarks and electrons** are the smallest *known* particles. Experiments find no internal structure: they act like points, and the measured upper limit on quark size is about **4 × 10⁻¹⁸ m** (ZEUS/HERA).
-- **Planck length (1.6 × 10⁻³⁵ m)** is where current physics stops working. Below it, distance probably loses its meaning. This is theory, not something anyone has observed.
-- **Strings and loop quantum gravity** are hypotheses that have never been observed.
-
-So the zoom starts at quarks (10⁻¹⁸ m). An optional zone marked **"speculative"** extends down to the Planck length.
-
-Full range: 10⁻³⁵ → 10²⁷ m, which is **62 orders of magnitude** (45 if we start at quarks).
-
-## Core technical problem and solution
-
-A 32-bit float has about 7 significant digits. That means 62 orders of magnitude **cannot live in one three.js scene**: no depth-buffer trick, logarithmic or reversed, covers that range.
-
-**Solution: a log-scale camera with local-unit layers.**
-
-- The whole app state is one number: `zoom = log10(metres across the view)`. It runs from -35 to 27.
-- Each **scale layer** (atom, cell, Earth, galaxy and so on) is a React component that declares the range of scales it covers.
-- A layer is mounted only while `zoom` is inside its range. It renders in **local units**: `sceneUnit = metres / 10^layerZoom`. Every layer sees numbers between roughly 0.01 and 100, so floats stay accurate.
-- Neighbouring layers cross-fade and scale smoothly as `zoom` passes between them. The camera itself never moves very far; only the content gets resized. This is the same idea as "Powers of Ten" and Cary Huang's "Scale of the Universe".
-- Rotating and panning stay as normal camera controls inside the current layer.
-
-As a result we need no floating-origin system, no logarithmic depth buffer and no double-precision maths.
-
-## Libraries (official / pmndrs first, to avoid custom code)
-
-| Need | Library | Status |
-|------|---------|--------|
-| React renderer for three.js | `@react-three/fiber` v9 | installed |
-| Helpers: `CameraControls`, `Instances`, `Points`, `Text`, `Billboard`, `Html`, `Stars`, `Sparkles`, `Sphere`, `useTexture` | `@react-three/drei` | installed |
-| Bloom/glow (stars, quarks, galaxies) | `@react-three/postprocessing` | phase 1 |
-| Global zoom state | `zustand` | phase 1 |
-| Debug sliders (dev only) | `leva` | phase 1 |
-| Easing, random points in a sphere or disc (galaxies, clouds) | `maath` | phase 2 |
-| Real Sun, Moon and planet positions (VSOP87, ±1′) | `astronomy-engine` | phase 5 |
-| Star positions | HYG star database (CSV → trimmed JSON in `public/data`) | phase 6, licence to check |
-| Galaxy positions / cosmic web | 2MASS Redshift Survey or Cosmicflows catalogue | phase 7, source and licence to check |
-| Planet textures | Solar System Scope (CC BY 4.0) / NASA | phase 4–5 |
-
-Considered but skipped: `@react-three/uikit` (DOM overlays are enough for the HUD), physics engines (nothing collides), `@react-three/xr` (maybe later).
-
-## Scale ladder (log10 metres)
-
-| zoom | Layer | Content |
-|-----:|-------|---------|
-| -35 | Planck (speculative) | foam/noise shader, labelled as theory |
-| -18 | Quarks | 3 quarks plus gluon field (`Sparkles`), colour charge |
-| -15 | Proton / neutron | uud / udd quark triplets |
-| -14 | Nucleus | packed nucleons (`Instances`) |
-| -10 | Atom | nucleus speck plus electron orbital cloud (`Points`) |
-| -9 | Molecule | water, then a DNA helix (2 nm) |
-| -7 | Virus | icosahedral capsid |
-| -5 | Cell | membrane, nucleus, organelles |
-| 0 | Human | silhouette / everyday objects |
-| 7 | Earth | textured globe, atmosphere |
-| 9 | Sun | glowing sphere |
-| 13 | Solar system | orbits from `astronomy-engine` |
-| 16 | Nearest stars | HYG neighbourhood |
-| 21 | Milky Way | procedural spiral of points |
-| 23 | Local Group | Andromeda, Triangulum, satellites |
-| 25 | Laniakea / cosmic web | catalogue points or procedural filaments |
-| 26.9 | Observable universe | CMB sphere at the edge |
-| >27 | Multiverse (later) | sibling universe bubbles |
-
-## Project structure (lean, grows by phase)
+A universe you can zoom into **anywhere**, where everything is genuinely made of the level below it:
 
 ```
-existence/
-├─ PLAN.md
-├─ public/
-│  ├─ data/             # trimmed catalogues (stars.json, galaxies.json)
-│  └─ textures/         # planet maps, CMB
-└─ src/
-   ├─ main.tsx
-   ├─ App.tsx           # <Canvas>, effects, renders active layers + HUD
-   ├─ store.ts          # zustand: zoom, target zoom, actions (jumpTo)
-   ├─ scales.ts         # the ladder table above as data (id, min, max, label, facts)
-   ├─ Layer.tsx         # mounts children in local units + cross-fade by zoom
-   ├─ Hud.tsx           # DOM overlay: current size, ruler, layer name, facts
-   └─ layers/           # one file per layer; becomes a folder only when it grows
-      ├─ Quarks.tsx
-      ├─ Atom.tsx
-      ├─ ...
-      └─ Universe.tsx
+observable universe → superclusters → galaxies → stars → planets → surface → human
+→ organs → tissues → cells → organelles → molecules → atoms → nucleus + electrons
+→ protons + neutrons → quarks
 ```
 
-Rule: a new layer = a new file in `layers/` plus one row in `scales.ts`. Nothing else changes.
+Any atom you reach really is Z protons + N neutrons + Z electrons in their real orbitals. Every cell really is made of molecules, and every molecule of atoms.
+
+## The honest constraint, and how we get around it
+
+A human body has about **7 × 10²⁷ atoms**; the observable universe has about 10⁸⁰. No computer can store them, and nobody knows where the atoms in your body actually are (quantum mechanics says there is no single answer anyway).
+
+**So nothing is stored. Everything is generated on demand, deterministically.** This is the same idea as Minecraft worlds and SpaceEngine:
+
+- Every object is a **node** with a **seed**. Its contents (children) are generated from that seed only when you zoom close enough to see them, and are thrown away when you leave.
+- The same seed always gives the same contents. Zoom into the third cell on the left, leave, come back: same cell, same molecules, same atoms.
+- The **rules are real**:
+  - real element data
+  - real molecule geometry, from PDB/PubChem structures
+  - real concentrations (water is 33 molecules/nm³, and a cell is about 70% water and 15% protein by mass)
+  - real orbital shapes
+  - real cell and organelle sizes
+  - real anatomy, catalogues and orbits where they exist
+- The **exact arrangement** is random within those rules, like reality at that level.
+- **"Simulation" means local dynamics** where you are looking: electrons resampled from their probability clouds every frame, thermal jiggling of molecules and nucleons, orbits moving. A full physics simulation of everything at once is impossible at any compute budget.
+
+## Architecture
+
+### 1. Node tree (`src/engine/`)
+
+```ts
+type Kind = {
+  id: string
+  children(node): Child[]       // deterministic from node.seed; lazy
+  Far: Component                // what it looks like when too small to open (LOD)
+  Near?: Component              // extra detail drawn while open (orbitals, membranes…)
+}
+type Child = { kind: string; pos: Vec3; size: number; seed: number }  // pos/size in parent units
+```
+
+- **Kinds are lazy-loaded** with `import()`, so atom code isn't downloaded until you reach atoms, and protein structures aren't fetched until you see that protein.
+- Huge collections (a cell's 10¹⁴ atoms) are never listed. They are split into **region nodes** (octree cubes), and only the leaf cube you are looking at generates its molecules.
+
+### 2. Camera: hierarchical floating origin
+
+- The camera state is `path` (the chain of nodes from the root to the node you're in) + `focus` (a point in that node's local coordinates) + `zoom` (log10 of the view width in metres).
+- **Zoom toward the cursor**: the point under the mouse stays fixed while you zoom, like Google Maps.
+- When the view gets much smaller than a child containing the focus, we **descend** into it and convert the focus point into the child's coordinates. When the view gets much bigger than the current node, we **ascend**. The numbers therefore stay small forever: no float limits from the quark to the universe.
+- JS numbers are 64-bit, so positions are computed in float64 relative to the camera and only then handed to the GPU as float32.
+
+### 3. Level-of-detail renderer
+
+- Starting a few levels above the current node, walk down the tree. A node is **opened** (children generated and drawn) if it appears bigger than a threshold on screen, otherwise its `Far` look is drawn.
+- Per-kind **instancing**: thousands of water molecules or atoms are one draw call each.
+- A frame budget caps how many nodes open at once; far ones close first.
+
+### 4. URL = location
+
+`#path=...&zoom=...` so any spot in existence is a shareable link.
+
+## Real data sources (minimise custom work)
+
+| Level | Source | Notes |
+|-------|--------|-------|
+| Elements (118) | [Periodic-Table-JSON](https://github.com/Bowserinator/Periodic-Table-JSON): Z, mass, electron configuration, CPK colour, radii | trimmed to factual fields, attributed |
+| Orbitals | hydrogen-like wavefunctions with Slater's rules (Z_eff) | sampled per electron |
+| Small molecules | PubChem 3D conformers (water, glucose, amino acids, ATP, lipids) | |
+| Proteins, DNA, ribosomes | RCSB PDB files, parsed by three.js's built-in `PDBLoader` | fetched lazily |
+| Cell contents | abundances / sizes from literature; [cellPACK](https://ccsb.scripps.edu/mycoplasma_model/) whole-cell recipes as reference | |
+| Human anatomy | [Z-Anatomy](https://github.com/Z-Anatomy/Models-of-human-anatomy) / BodyParts3D | CC BY-SA 4.0: attribution + share-alike |
+| Solar system | `astronomy-engine` (VSOP87) | |
+| Stars | HYG catalogue + procedural fill | |
+| Galaxies | 2MASS / Cosmicflows catalogues + procedural fill | |
+
+Rendering stays on R3F, drei (Instances, CameraControls, …), postprocessing and zustand. The Phase 1–3 visuals (DNA, virus, cell, nucleus) get reused as `Far` looks.
 
 ## Phases
 
-Each phase ends with something visible that you can zoom through.
+Each phase is one PR against `main`, merged = live on https://burrows99.github.io/existence/.
 
-### Phase 0: Boilerplate ✅
-Vite + React 19 + TS + three + fiber 9 + drei. Spinning cube.
+| Phase | Delivers |
+|-------|----------|
+| **A. Engine + matter** | Node tree, float64 hierarchical camera, zoom-to-cursor anywhere, lazy kinds, seeded RNG. Content: a box of liquid water → H₂O → atoms → nucleus + electrons (real orbitals, all 118 elements supported) → protons/neutrons → quarks. |
+| **B. Molecules of life** | PDB-backed proteins, DNA, lipids; molecules decompose into their real atoms. |
+| **C. Cell** | Membrane (lipid bilayer region), cytoplasm regions packed at real concentrations, nucleus with chromatin, mitochondria, ribosomes. Several cell types. |
+| **D. Body** | Anatomical human made of organs → tissues → cells (skin, blood, muscle, neurons…). |
+| **E. Earth** | Surface region containing the human; Earth's layers (crust, mantle, core, ocean, atmosphere), each made of the right materials. |
+| **F. Solar system + stars** | Real planets and orbits; HYG stars + procedural stars, each star openable. |
+| **G. Galaxies → universe** | Milky Way (real + procedural), Local Group, catalogue galaxies, cosmic web, CMB edge. |
+| **H. Polish** | Search ("take me to a carbon atom in my heart"), info panels, guided tours, mobile, performance. |
+| **I. Multiverse** | Sibling universes as seeds; clearly labelled as hypothesis. |
 
-### Phase 1: Scale engine
-- `store.ts`: `zoom`, `targetZoom`, damped towards the target each frame.
-- Wheel or pinch changes `targetZoom` (log-linear, so each scroll step covers the same number of decades).
-- `Layer.tsx`: visibility, local scaling and opacity fade.
-- `Hud.tsx`: "1.6 × 10⁻¹⁵ m", layer name, a ruler from 10⁻³⁵ to 10²⁷ that can be clicked to jump.
-- A placeholder labelled sphere for every row in the ladder.
-- **Done when:** you can scroll smoothly from quarks to the universe and see the labels hand off.
+## Non-goals (honest limits)
 
-### Phase 2: Subatomic → atomic
-Quarks, proton/neutron, nucleus, atom (electron cloud as points). Bloom added.
-
-### Phase 3: Molecular → cellular
-Water, DNA helix, virus capsid, cell.
-
-### Phase 4: Human → Earth
-Human scale, textured Earth with atmosphere glow.
-
-### Phase 5: Solar system
-Sun and planets at true positions for the current date (`astronomy-engine`), orbit lines.
-
-### Phase 6: Stars → Milky Way
-Nearby stars from HYG, procedural Milky Way, Sun marker.
-
-### Phase 7: Cosmic scale
-Local Group, cosmic web, observable universe edge (CMB texture).
-
-### Phase 8: Polish
-Info cards per layer, search and jump-to, a "tour" auto-zoom, mobile performance, loading only the layers near the current zoom (lazy `import()`).
-
-### Phase 9: Multiverse (speculative)
-Zoom past 10²⁷: our universe becomes one bubble among procedural siblings. Clearly labelled as hypothesis.
-
-## Open questions
-
-- Should it look realistic (textures, data) or stylised (consistent abstract look across all scales)? Stylised is far cheaper and hides the scales where real images don't exist (quarks have no "look").
-- Desktop only at first, or mobile from phase 1?
-
-## Sources
-
-- [R3F installation](https://r3f.docs.pmnd.rs/getting-started/installation)
-- [pmndrs libraries](https://docs.pmnd.rs/)
-- [react-postprocessing](https://github.com/pmndrs/react-postprocessing)
-- [astronomy-engine](https://npmjs.com/package/astronomy-engine)
-- [three.js reverse depth buffer example](https://threejs.org/examples/webgl_reverse_depth_buffer.html) (not needed thanks to local-unit layers)
-- [Log depth buffer performance cost](https://discourse.threejs.org/t/beware-of-logarithmic-depth-buffer-it-can-degrade-scene-performance/88495)
-- [ZEUS quark radius limit](https://ora.ox.ac.uk/objects/uuid:28001a3f-2bb2-4750-b13c-60dcb25d28e1)
+- **No global physics simulation** (no MD of a whole cell, no N-body universe): only local, visual dynamics.
+- **Below quarks**: the Planck scale stays as a labelled "speculative" zone, because nothing is known to be there.
+- **Electrons are not little balls in orbits**: they are drawn as positions sampled from their real probability clouds, which is what a measurement would find.
