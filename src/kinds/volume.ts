@@ -13,7 +13,7 @@ export type Volume = {
   fill: (r: Region, rng: () => number, leaf: Node) => ChildSpec[] // leaf contents, pos in leaf units
   far: (r: Region, node: Node) => Far | Far[] | null
   open?: (r: Region, root: Node) => number
-  radius?: number // the thing's own extent as a fraction of its cube, for keeping other things out of it
+  inside?: (node: Node, p: Vec3) => boolean // is this point (node units) inside the thing itself, not just its cube?
   Near?: Kind['Near'] // drawn for the root only
   nearMax?: number // hide the Near once the root spans more than this many views
   info: (r: Region, node: Node) => { title: string; fact?: string }
@@ -53,7 +53,7 @@ export function inclusions(v: Volume, leaf: Node): Inclusion[] {
 export function hitsAtoms(inc: Inclusion, p: Vec3, r: number) {
   const d = Math.hypot(p[0] - inc.c[0], p[1] - inc.c[1], p[2] - inc.c[2])
   const kind = kindOf(inc.node.kind)
-  if (kind?.space) return d < (kind.radius ?? 0.5) * inc.s + r
+  if (kind?.space) return kind.inside ? kind.inside(inc.node, [(p[0] - inc.c[0]) / inc.s, (p[1] - inc.c[1]) / inc.s, (p[2] - inc.c[2]) / inc.s]) : d < 0.5 * inc.s + r
   if (d - r > inc.s / 2) return false
   for (const a of childrenOf(inc.node)) {
     const ar = (a.size / 2) * inc.s
@@ -65,7 +65,7 @@ export function hitsAtoms(inc: Inclusion, p: Vec3, r: number) {
 export function volume(v: Volume): Kind {
   return {
     space: true,
-    radius: v.radius,
+    inside: v.inside,
     open: n => v.open?.(regionOf(n), volumeRoot(n)) ?? 0.1,
     far: n => v.far(regionOf(n), n),
     Near: v.Near,

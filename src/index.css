@@ -15,3 +15,7 @@ body { font-family: system-ui, sans-serif; color: #e8ecf4; }
 .ruler button { position: absolute; right: 8px; transform: translateY(-50%); background: none; border: 0; padding: 0 2px; font: 11px system-ui, sans-serif; cursor: pointer; opacity: 0.75; white-space: nowrap; }
 .ruler button:hover, .ruler button:focus-visible { opacity: 1; text-decoration: underline; }
 .ruler .marker { position: absolute; right: -6px; width: 11px; height: 2px; background: #fff; transform: translateY(-50%); }
+
+.landmarks { position: fixed; bottom: 40px; left: 24px; display: flex; gap: 14px; font-size: 12px; }
+.landmarks a { color: #9fd3ff; text-decoration: none; opacity: 0.8; }
+.landmarks a:hover { opacity: 1; text-decoration: underline; }

@@ -2,7 +2,7 @@
 // packed with cells of its kind, the fluid between them is water, and outside the skin is air.
 import { useMemo } from 'react'
 import { DoubleSide, Quaternion, Vector3 } from 'three'
-import { childrenOf, hash, mulberry32, type ChildSpec, type Far, type Vec3 } from '../engine/tree'
+import { childrenOf, hash, mulberry32, type ChildSpec, type Far, type Node, type Vec3 } from '../engine/tree'
 import { hitsAtoms, inclusions, rootProps, volume, type Volume } from './volume'
 import { fillAir, fillWater } from './matter'
 import { TYPES, cubeOf } from './cell'
@@ -93,17 +93,29 @@ const TISSUE: Record<Tissue, TissueSpec> = {
   liver: { cell: 5, keep: 1, color: '#7a2e1a', name: 'Liver', fact: 'The body’s chemical plant: 240 billion hepatocytes storing sugar, making proteins and clearing the blood.' },
   gut: { cell: 8, keep: 1, color: '#c98a6a', name: 'Gut', fact: 'The lining of the stomach and intestines, where food becomes molecules small enough to take in.' },
 }
-const toMetres = (p: Vec3): Vec3 => [p[0] * SIDE, p[1] * SIDE, p[2] * SIDE]
+// the body stands along `up` (props ux, uy, uz; default +y): points are rotated into the figure's own frame
+const Yv = new Vector3(0, 1, 0)
+const quats = new WeakMap<Node, Quaternion>()
+function toFigure(node: Node, p: Vec3): Vec3 {
+  const up = (node.props.uy === undefined) ? null : new Vector3(node.props.ux as number, node.props.uy as number, node.props.uz as number)
+  if (!up) return [p[0] * SIDE, p[1] * SIDE, p[2] * SIDE]
+  let q = quats.get(node)
+  if (!q) quats.set(node, (q = new Quaternion().setFromUnitVectors(up.normalize(), Yv)))
+  const v = new Vector3(p[0] * SIDE, p[1] * SIDE, p[2] * SIDE).applyQuaternion(q)
+  return [v.x, v.y, v.z]
+}
+const uprightOf = (node: Node) => node.props.uy === undefined ? new Quaternion() : new Quaternion().setFromUnitVectors(Yv, new Vector3(node.props.ux as number, node.props.uy as number, node.props.uz as number).normalize())
 
-function Figure() {
+function Figure({ node }: { node: Node }) {
   const Y = new Vector3(0, 1, 0)
+  const upright = useMemo(() => uprightOf(node), [node])
   const caps = useMemo(() => [...PARTS.map(s => ({ s, color: '#d9a37a', opacity: 0.22 })), ...BONES.map(s => ({ s, color: '#efe9d8', opacity: 0.6 }))].map(({ s, color, opacity }) => {
     const a = new Vector3(...s.a), b = new Vector3(...s.b), dir = b.clone().sub(a)
     const q = dir.length() ? new Quaternion().setFromUnitVectors(Y, dir.clone().normalize()) : new Quaternion()
     return { mid: a.clone().add(b).multiplyScalar(0.5 / SIDE), q, len: dir.length() / SIDE, r: s.r / SIDE, zs: s.zs ?? 1, color, opacity }
   }), [])
   return (
-    <group>
+    <group quaternion={upright}>
       {caps.map((c, i) => (
         <mesh key={i} position={c.mid} quaternion={c.q} scale={[1, 1, c.zs]}>
           <capsuleGeometry args={[c.r, c.len, 6, 16]} />
@@ -126,10 +138,11 @@ const body: Volume = {
   open: r => (r.depth === PLACE_DEPTH ? 0.2 : r.depth >= LEAF_DEPTH ? 0.15 : 0.1),
   Near: Figure,
   nearMax: SIDE / 2e-3, // the outline is a guide down to a couple of millimetres
+  inside: (node, p) => bodySdf(toFigure(node, p)) < 0,
 
   // cells of the local tissue, packed on a jittered grid
-  placements: (r, rng) => {
-    const T = TISSUE[tissueAt(toMetres(r.c))]
+  placements: (r, rng, node) => {
+    const T = TISSUE[tissueAt(toFigure(node, r.c))]
     if (T.cell < 0) return []
     const d = TYPES[T.cell].d * 1e-6, side = r.s * SIDE
     const n = Math.max(1, Math.round(side / (d * 1.02))), gap = 1 / n, jit = n > 1 ? 0.3 * (gap - d / side) : 0
@@ -145,14 +158,14 @@ const body: Volume = {
 
   // between the cells: water, or air in the lungs and outside the skin
   fill: (r, rng, leaf) => {
-    const T = TISSUE[tissueAt(toMetres(r.c))]
+    const T = TISSUE[tissueAt(toFigure(leaf, r.c))]
     const incs = inclusions(body, leaf)
     const keepOut = (p: Vec3, rad: number) => incs.some(inc => hitsAtoms(inc, p, rad))
-    return T.air ? fillAir(r.s * SIDE, rng, keepOut) : fillWater(r.s * SIDE, rng, keepOut)
+    return T.air ? fillAir(r.s * SIDE, rng, keepOut) : fillWater(r.s * SIDE, rng, keepOut, 0.15)
   },
 
   far: (r, node) => {
-    const T = TISSUE[tissueAt(toMetres(r.c))]
+    const T = TISSUE[tissueAt(toFigure(node, r.c))]
     if (!T.color) return null
     if (r.depth < 9) return { shape: 'haze', color: T.color } // coarser than 4 mm: a tint
     if (r.depth > PLACE_DEPTH) return null // its cells are drawn by the open parent
@@ -168,9 +181,9 @@ const body: Volume = {
     return out
   },
 
-  info: r => {
+  info: (r, node) => {
     if (r.depth < 12) return { title: 'Human body', fact: 'A person 1.7 m tall, drawn as a stylised figure: skin and fat over muscle and bone, organs inside, air outside. Every tissue is cells, every cell is molecules.' }
-    const T = TISSUE[tissueAt(toMetres(r.c))]
+    const T = TISSUE[tissueAt(toFigure(node, r.c))]
     return { title: T.name, fact: T.fact }
   },
 }

@@ -42,6 +42,7 @@ export function World() {
     glow: batch(new SphereGeometry(0.5, 12, 8), new MeshBasicMaterial({ toneMapped: false })),
     box: batch(new BoxGeometry(), new MeshStandardMaterial({ transparent: true, opacity: 0.08, depthWrite: false })),
     haze: batch(new SphereGeometry(0.5, 10, 7), new MeshBasicMaterial({ transparent: true, opacity: 0.08, blending: AdditiveBlending, depthWrite: false, toneMapped: false })),
+    cube: batch(new BoxGeometry(), new MeshStandardMaterial({ roughness: 0.8 })),
   }), [])
   const nearRefs = useRef(new Map<string, Group>())
   const [near, setNear] = useState<Node[]>([])
@@ -114,7 +115,7 @@ export function World() {
     let visited = 0
 
     const put = (far: Far, rel: Vec3, diameter: number) => {
-      const b = far.glow ? batches.glow : far.shape === 'box' ? batches.box : far.shape === 'haze' ? batches.haze : batches.solid
+      const b = far.glow ? batches.glow : far.shape === 'box' ? batches.box : far.shape === 'haze' ? batches.haze : far.shape === 'cube' ? batches.cube : batches.solid
       if (b.count >= CAP) return
       const d = Math.max(diameter * k * (far.scale ?? (far.shape === 'haze' ? 0.7 : 1)), far.minPx ? (far.minPx * VIEW) / size.height : 0)
       if (d < (0.5 * VIEW) / size.height) return // sub-pixel
@@ -165,7 +166,7 @@ export function World() {
         return
       }
       if (!far.minPx && s * pxPerUnit < 0.5) return // sub-pixel
-      if (per && !kind.space) {
+      if (per && (!kind.space || n.props.depth === 0)) { // a whole block of rock or water is a thing; its sub-regions are not
         const rr = Math.max(rpx, (far.minPx ?? 0) / 2)
         if (d2 < rr * rr && z > pick.solidZ) { pick.solid = n; pick.solidZ = z }
         if (d2 < pick.nearD * pick.nearD) { pick.near = n; pick.nearD = Math.sqrt(d2) }

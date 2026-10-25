@@ -174,7 +174,7 @@ function Organelles({ node }: { node: Node }) {
 const cell: Volume = {
   leafDepth: root => specOf(root).leaf,
   placeDepth: root => specOf(root).place,
-  radius: R_CELL,
+  inside: (_, p) => len(p) < R_CELL,
   open: (r, root) => (r.depth >= specOf(root).leaf ? 0.15 : 0.1),
   Near: Organelles,
   nearMax: 160, // the organelle outlines are a guide; deep inside, the molecules speak for themselves

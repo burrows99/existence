@@ -14,7 +14,7 @@ const CLOUD = 1200 // samples per electron
 function Cloud({ node }: { node: Node }) {
   const positions = useMemo(() => {
     const rng = mulberry32(node.seed ^ 0x9e3779b9)
-    const orbs = orbitals(node.props.z as number)
+    const orbs = orbitals((node.props.z as number) - ((node.props.q as number) ?? 0))
     const out = new Float32Array(orbs.length * CLOUD * 3)
     let i = 0
     for (const o of orbs) for (let j = 0; j < CLOUD; j++) {
@@ -40,10 +40,10 @@ const atom: Kind = {
   jitter: 5e-12, // bond vibration
   far: n => ({ shape: 'sphere', color: element(n.props.z as number)[5] }),
   children: (node, rng) => {
-    const z = node.props.z as number, A = element(z)[3]
+    const z = node.props.z as number, A = element(z)[3], q = (node.props.q as number) ?? 0
     const d = (A === 1 ? 1.7 : 2.4 * Math.cbrt(A) + 1.7) * FM
     const out: ChildSpec[] = [{ kind: 'nucleus', pos: [0, 0, 0], size: d / node.metres, props: { z, a: A } }]
-    for (const o of orbitals(z)) {
+    for (const o of orbitals(z - q)) { // an ion has the electrons of the element it is isoelectronic with
       const p = sampleOrbital(o, rng)
       out.push({ kind: 'electron', pos: [p[0] / node.metres, p[1] / node.metres, p[2] / node.metres], size: POINT / node.metres, props: { n: o.n, l: o.l } })
     }
@@ -51,11 +51,12 @@ const atom: Kind = {
   },
   Near: Cloud,
   info: n => {
-    const [z, , name, A, cfg] = element(n.props.z as number)
+    const [z, sym, name, A] = element(n.props.z as number), q = (n.props.q as number) ?? 0
+    const cfg = element(z - q)[4]
     const ratio = n.metres / ((A === 1 ? 1.7 : 2.4 * Math.cbrt(A)) * FM)
     return {
-      title: `${name} atom`,
-      fact: `${count(z, 'proton')}, ${count(A - z, 'neutron')}, ${count(z, 'electron')} (${cfg.replace(/(\d+)$|(\d+)(?= )/g, s => sup(s))}). ${Math.round(n.metres * 1e12)} pm across; the nucleus is ${ratio.toExponential(0).replace('e+', ' × 10').replace(/10(\d+)/, (_, e) => '10' + sup(e))} times smaller. Everything else is where the electrons might be.`,
+      title: q ? `${name} ion (${sym}${q > 0 ? '⁺' : '⁻'})` : `${name} atom`,
+      fact: `${count(z, 'proton')}, ${count(A - z, 'neutron')}, ${count(z - q, 'electron')} (${cfg.replace(/(\d+)$|(\d+)(?= )/g, s => sup(s))})${q ? `: it has ${q > 0 ? 'lost' : 'gained'} one, which is what makes it an ion` : ''}. ${Math.round(n.metres * 1e12)} pm across; the nucleus is ${ratio.toExponential(0).replace('e+', ' × 10').replace(/10(\d+)/, (_, e) => '10' + sup(e))} times smaller. Everything else is where the electrons might be.`,
     }
   },
 }

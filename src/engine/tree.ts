@@ -22,7 +22,7 @@ export type Node = {
 export type ChildSpec = { kind: string; pos: Vec3; size: number; props?: Props }
 
 export type Far = {
-  shape: 'sphere' | 'box' | 'haze'
+  shape: 'sphere' | 'box' | 'haze' | 'cube'
   color: string
   scale?: number // drawn this fraction of the node's size (a cell is smaller than its cube)
   pos?: Vec3 // offset in node units, for a closed node drawn as several things (a sample of what it holds)
@@ -40,7 +40,7 @@ export type Kind = {
   near?: number // same, for Near (default: open)
   nearMax?: number // and no Near once the node spans more than this many views (deep inside it)
   space?: boolean // just a region of space: never something to lock on to
-  radius?: number // for space kinds: the thing's own extent as a fraction of its size, to keep others out
+  inside?: (node: Node, p: Vec3) => boolean // for space kinds: is a point (node units) inside the thing itself?
   jitter?: number // thermal / confinement motion amplitude, metres
   info: (node: Node) => { title: string; fact?: string }
 }
@@ -75,6 +75,9 @@ export function randomRotation(rng: () => number) {
 const matter = () => import('../kinds/matter')
 const atom = () => import('../kinds/atom')
 const LOADERS: Record<string, () => Promise<{ kinds: Record<string, Kind> }>> = {
+  earth: () => import('../kinds/earth'),
+  grain: () => import('../kinds/crystal'),
+  fluid: () => import('../kinds/fluid'),
   body: () => import('../kinds/body'),
   cell: () => import('../kinds/cell'),
   h2o: matter, n2: matter, o2: matter,

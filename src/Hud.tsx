@@ -1,6 +1,15 @@
 import { MIN_ZOOM, maxZoom, useCam } from './engine/camera'
 import { useSyncExternalStore } from 'react'
 import { ancestry, kindOf, kindsLoaded, subscribeKinds } from './engine/tree'
+import { PERSON } from './kinds/earth'
+
+const LANDMARKS: [string, string][] = [
+  ['Earth', '#at=e&z=7.25'],
+  ['A person', `#at=${PERSON.key}&z=0.35`],
+  ['A muscle cell', `#at=${PERSON.key}&f=0.06,-0.1,0.02&z=-4.8`],
+  ['Molecules', `#at=${PERSON.key}&f=0.06,-0.1,0.02&z=-8.4`],
+  ['Atoms', `#at=${PERSON.key}&f=0.06,-0.1,0.02&z=-9.6`],
+]
 
 const UNITS: [number, string][] = [
   [9.461e24, 'billion light-years'],
@@ -60,6 +69,9 @@ export function Hud() {
         )}
         <div className="hint">Scroll to zoom into whatever is under the cursor · drag to look around · click the ruler to zoom back out</div>
       </div>
+      <nav className="landmarks" aria-label="Go to">
+        {LANDMARKS.map(([label, href]) => <a key={label} href={href}>{label}</a>)}
+      </nav>
 
       <nav className="ruler" aria-label="Where you are">
         <div className="marker" style={{ top: `${pct(zoom)}%` }} />

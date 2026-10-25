@@ -7,7 +7,7 @@ const AIR = 2.5e25 // molecules per m³ of air at sea level
 
 // Fill a cube of `side` metres with liquid water at the real density: a jittered grid, thinned to the right count,
 // skipping wherever keepOut says something else already is. Positions are in cube units (side = 1).
-export function fillWater(side: number, rng: () => number, keepOut: (p: Vec3, radius: number) => boolean): ChildSpec[] {
+export function fillWater(side: number, rng: () => number, keepOut: (p: Vec3, radius: number) => boolean, salt = 0): ChildSpec[] {
   const N = Math.round(WATER * side ** 3)
   const G = Math.ceil(Math.cbrt(N)), keep = N / G ** 3
   const size = H2O / side, radius = 0.14e-9 / side
@@ -19,12 +19,21 @@ export function fillWater(side: number, rng: () => number, keepOut: (p: Vec3, ra
     if (keepOut(pos, radius)) continue
     out.push({ kind: 'h2o', pos, size })
   }
+  // dissolved salt: sodium and chloride ions, `salt` moles per litre
+  const ions = salt * 6.022e26 * side ** 3
+  for (const [z, q, d] of [[11, 1, 0.24e-9], [17, -1, 0.36e-9]] as const) {
+    let n = Math.floor(ions) + (rng() < ions - Math.floor(ions) ? 1 : 0)
+    while (n-- > 0) {
+      const pos = [0, 1, 2].map(() => rng() - 0.5) as Vec3
+      if (!keepOut(pos, d / 2 / side)) out.push({ kind: 'atom', pos, size: d / side, props: { z, q } })
+    }
+  }
   return out
 }
 
 // Air: 78% N₂, 21% O₂ (argon and the rest left out), a thousandth as dense as water, so most nanometres are empty.
-export function fillAir(side: number, rng: () => number, keepOut: (p: Vec3, radius: number) => boolean): ChildSpec[] {
-  const mean = AIR * side ** 3
+export function fillAir(side: number, rng: () => number, keepOut: (p: Vec3, radius: number) => boolean, density = 1): ChildSpec[] {
+  const mean = AIR * density * side ** 3
   let n = Math.floor(mean) + (rng() < mean - Math.floor(mean) ? 1 : 0)
   const out: ChildSpec[] = []
   while (n-- > 0) {
