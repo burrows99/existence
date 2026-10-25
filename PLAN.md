@@ -60,7 +60,14 @@ type Child = { kind: string; pos: Vec3; size: number; seed: number }  // pos/siz
 
 ### 4. URL = location
 
-`#path=...&zoom=...` so any spot in existence is a shareable link.
+`#at=<node key>&f=<focus>&z=<zoom>` so any spot in existence is a shareable link. Node keys are the chain of child indices from the root, so a link regenerates exactly the same thing.
+
+### 5. Navigating (what Phase A settled)
+
+- Scrolling aims at whatever is under the cursor: the nearest solid thing, else the smallest opened thing, else anything within 24 px. Picking happens in the draw pass itself (every node's screen position is already known there), not with a raycaster.
+- Once the camera is inside the thing you scrolled into, it **locks on**: the centre glides to the middle of the view, so zooming into an atom lands on its nucleus.
+- A **cutaway** hides matter in front of the focus plane (you are inside a liquid, after all); point-like things are exempt because they never occlude.
+- Files: `src/engine/tree.ts` (nodes, kinds, seeds, eviction), `src/engine/camera.ts` (zoom, re-rooting, lock-on, URL), `src/engine/World.tsx` (traversal, instancing, picking), `src/kinds/*` (what things are made of). `npm test` checks the orbital maths.
 
 ## Real data sources (minimise custom work)
 
@@ -84,7 +91,7 @@ Each phase is one PR against `main`, merged = live on https://burrows99.github.i
 
 | Phase | Delivers |
 |-------|----------|
-| **A. Engine + matter** | Node tree, float64 hierarchical camera, zoom-to-cursor anywhere, lazy kinds, seeded RNG. Content: a box of liquid water → H₂O → atoms → nucleus + electrons (real orbitals, all 118 elements supported) → protons/neutrons → quarks. |
+| **A. Engine + matter** ✅ | Node tree, float64 hierarchical camera, zoom-to-cursor anywhere, lazy kinds, seeded RNG. Content: a box of liquid water → H₂O → atoms → nucleus + electrons (real orbitals, all 118 elements supported) → protons/neutrons → quarks. |
 | **B. Molecules of life** | PDB-backed proteins, DNA, lipids; molecules decompose into their real atoms. |
 | **C. Cell** | Membrane (lipid bilayer region), cytoplasm regions packed at real concentrations, nucleus with chromatin, mitochondria, ribosomes. Several cell types. |
 | **D. Body** | Anatomical human made of organs → tissues → cells (skin, blood, muscle, neurons…). |

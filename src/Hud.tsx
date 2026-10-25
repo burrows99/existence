@@ -1,5 +1,5 @@
-import { useScale } from './store'
-import { MAX_ZOOM, MIN_ZOOM, SCALES } from './scales'
+import { MIN_ZOOM, maxZoom, useCam } from './engine/camera'
+import { ancestry, kindOf } from './engine/tree'
 
 const UNITS: [number, string][] = [
   [9.461e24, 'billion light-years'],
@@ -15,9 +15,6 @@ const UNITS: [number, string][] = [
   [1e-15, 'fm'],
   [1e-18, 'am'],
   [1e-21, 'zm'],
-  [1e-24, 'ym'],
-  [1e-27, 'rm'],
-  [1e-30, 'qm'],
 ]
 
 const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹'
@@ -34,47 +31,39 @@ function friendly(log: number) {
   return unit ? `${(metres / unit[0]).toPrecision(3)} ${unit[1]}` : null
 }
 
-const top = (z: number) => ((MAX_ZOOM - z) / (MAX_ZOOM - MIN_ZOOM)) * 100
-
-// push labels apart so close scales (proton/nucleus) don't overlap; SCALES is sorted small→large
-const LABEL_TOP: number[] = []
-for (let i = SCALES.length - 1; i >= 0; i--) {
-  const prev = LABEL_TOP[i + 1]
-  LABEL_TOP[i] = prev === undefined ? top(SCALES[i].size) : Math.max(top(SCALES[i].size), prev + 2.2)
-}
-
 export function Hud() {
-  const zoom = useScale(s => s.zoom)
-  const zoomTo = useScale(s => s.zoomTo)
-  const near = SCALES.reduce((a, b) => (Math.abs(b.size - zoom) < Math.abs(a.size - zoom) ? b : a))
-  const inRange = Math.abs(near.size - zoom) < 1.5
+  const node = useCam(s => s.node)
+  const zoom = useCam(s => s.zoom)
+  const zoomTo = useCam(s => s.zoomTo)
+  const path = ancestry(node).map(n => ({ n, title: kindOf(n.kind)?.info(n).title ?? '…' }))
+  const info = kindOf(node.kind)?.info(node)
+  // collapse runs of the same title (the water octree), keeping the smallest
+  const marks = path.filter((p, i) => path[i + 1]?.title !== p.title)
+  const pct = (z: number) => ((maxZoom() - z) / (maxZoom() - MIN_ZOOM)) * 100
+  // labels sit at their true size but never closer than 2.4% of the ruler
+  const tops = marks.map(m => pct(Math.log10(m.n.metres)))
+  for (let i = 1; i < tops.length; i++) tops[i] = Math.max(tops[i], tops[i - 1] + 2.4)
 
   return (
     <>
       <div className="hud">
         <div className="size">{scientific(zoom)}</div>
         <div className="friendly">{friendly(zoom) ?? 'below the smallest SI unit'}</div>
-        {inRange ? (
+        <div className="path">{marks.map(p => p.title).join(' › ')}</div>
+        {info && (
           <div className="info">
-            <h1>
-              {near.label}
-              {near.speculative && <span className="tag">speculative</span>}
-            </h1>
-            <p>{near.fact}</p>
-          </div>
-        ) : (
-          <div className="info">
-            <p>No known structure at this scale.</p>
+            <h1>{info.title}</h1>
+            <p>{info.fact}</p>
           </div>
         )}
-        <div className="hint">Scroll or pinch to zoom · drag to rotate · click the ruler to jump</div>
+        <div className="hint">Scroll to zoom into whatever is under the cursor · drag to look around · click the ruler to zoom back out</div>
       </div>
 
-      <nav className="ruler" aria-label="Scale ruler">
-        <div className="marker" style={{ top: `${top(zoom)}%` }} />
-        {SCALES.map((s, i) => (
-          <button key={s.id} style={{ top: `${LABEL_TOP[i]}%`, color: s.color }} onClick={() => zoomTo(s.size)}>
-            {s.label}
+      <nav className="ruler" aria-label="Where you are">
+        <div className="marker" style={{ top: `${pct(zoom)}%` }} />
+        {marks.map(({ n, title }, i) => (
+          <button key={n.key} style={{ top: `${tops[i]}%` }} onClick={() => zoomTo(Math.log10(n.metres) + 0.2)}>
+            {title}
           </button>
         ))}
       </nav>
