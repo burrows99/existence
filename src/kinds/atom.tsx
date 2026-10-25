@@ -14,7 +14,8 @@ const CLOUD = 1200 // samples per electron
 function Cloud({ node }: { node: Node }) {
   const positions = useMemo(() => {
     const rng = mulberry32(node.seed ^ 0x9e3779b9)
-    const orbs = orbitals((node.props.z as number) - ((node.props.q as number) ?? 0))
+    const electrons = (node.props.z as number) - ((node.props.q as number) ?? 0)
+    const orbs = electrons > 0 ? orbitals(electrons) : []
     const out = new Float32Array(orbs.length * CLOUD * 3)
     let i = 0
     for (const o of orbs) for (let j = 0; j < CLOUD; j++) {
@@ -43,7 +44,7 @@ const atom: Kind = {
     const z = node.props.z as number, A = element(z)[3], q = (node.props.q as number) ?? 0
     const d = (A === 1 ? 1.7 : 2.4 * Math.cbrt(A) + 1.7) * FM
     const out: ChildSpec[] = [{ kind: 'nucleus', pos: [0, 0, 0], size: d / node.metres, props: { z, a: A } }]
-    for (const o of orbitals(z - q)) { // an ion has the electrons of the element it is isoelectronic with
+    if (z - q > 0) for (const o of orbitals(z - q)) { // an ion has the electrons of the element it is isoelectronic with
       const p = sampleOrbital(o, rng)
       out.push({ kind: 'electron', pos: [p[0] / node.metres, p[1] / node.metres, p[2] / node.metres], size: POINT / node.metres, props: { n: o.n, l: o.l } })
     }
@@ -52,7 +53,7 @@ const atom: Kind = {
   Near: Cloud,
   info: n => {
     const [z, sym, name, A] = element(n.props.z as number), q = (n.props.q as number) ?? 0
-    const cfg = element(z - q)[4]
+    const cfg = z - q > 0 ? element(z - q)[4] : 'none'
     const ratio = n.metres / ((A === 1 ? 1.7 : 2.4 * Math.cbrt(A)) * FM)
     return {
       title: q ? `${name} ion (${sym}${q > 0 ? '⁺' : '⁻'})` : `${name} atom`,

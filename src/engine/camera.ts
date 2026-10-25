@@ -18,8 +18,8 @@ type Cam = {
 
 export const MIN_ZOOM = -19 // one decade below the smallest scale anything has been found at
 
-// a 13,000 km cube holding the Earth (see kinds/earth.tsx)
-export const root: Node = { key: 'e', kind: 'earth', seed: 1, props: { depth: 0, x: 0, y: 0, z: 0, s: 1 }, pos: [0, 0, 0], size: 1, metres: 1.3e7 }
+// a 100 AU cube holding the solar system (see kinds/solar.tsx)
+export const root: Node = { key: 's', kind: 'solar', seed: 1, props: { depth: 0, x: 0, y: 0, z: 0, s: 1 }, pos: [0, 0, 0], size: 1, metres: 1.496e13 }
 export const maxZoom = () => Math.log10(root.metres * 3)
 
 // #at=<node key>&f=<focus>&z=<zoom> is a complete location; #z=<zoom> alone keeps the default spot
@@ -28,7 +28,7 @@ function parseHash(): NonNullable<Cam['pending']> {
   return {
     key: h.get('at') ?? root.key,
     focus: (h.get('f') ?? '0,0,0').split(',').map(Number) as Vec3,
-    zoom: MathUtils.clamp(Number(h.get('z') ?? 7.25), MIN_ZOOM, maxZoom()),
+    zoom: MathUtils.clamp(Number(h.get('z') ?? 13.1), MIN_ZOOM, maxZoom()),
   }
 }
 

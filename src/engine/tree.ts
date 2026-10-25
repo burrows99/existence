@@ -75,12 +75,15 @@ export function randomRotation(rng: () => number) {
 const matter = () => import('../kinds/matter')
 const atom = () => import('../kinds/atom')
 const LOADERS: Record<string, () => Promise<{ kinds: Record<string, Kind> }>> = {
+  solar: () => import('../kinds/solar'),
+  star: () => import('../kinds/star'),
+  planet: () => import('../kinds/planet'),
   earth: () => import('../kinds/earth'),
   grain: () => import('../kinds/crystal'),
   fluid: () => import('../kinds/fluid'),
   body: () => import('../kinds/body'),
   cell: () => import('../kinds/cell'),
-  h2o: matter, n2: matter, o2: matter,
+  h2o: matter, n2: matter, o2: matter, h2: matter, co2: matter,
   molecule: () => import('../kinds/molecule'),
   atom, electron: atom, nucleus: atom, nucleon: atom, quark: atom,
 }

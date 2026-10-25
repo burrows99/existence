@@ -51,7 +51,7 @@ export const PERSON = (() => {
     }
     if (Math.max(...[0, 1, 2].map(i => Math.abs(c[i] - o[i]))) < s / 2 - 1.2 / SIDE) {
       UP[0] = up[0]; UP[1] = up[1]; UP[2] = up[2]
-      return { centre: c, up, key: `e.${key.join('.')}.8` }
+      return { centre: c, up, path: `${key.join('.')}.8` } // child indices from the Earth node down to the body
     }
   }
   throw new Error('no room for a person')
@@ -123,6 +123,7 @@ const earth: Volume = {
   },
 
   far: r => {
+    if (r.depth === 0) return { shape: 'sphere', color: '#4a7fc0', scale: 2 * R, minPx: 2 } // seen from space
     if (r.depth < 10) return null // coarser than 13 km the globe itself is the picture
     const color = HAZE[materialAt(r.c)]
     return color ? { shape: 'haze', color } : null

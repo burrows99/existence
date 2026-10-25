@@ -18,7 +18,7 @@ export default function App() {
 
   return (
     <>
-      <Canvas dpr={[1, 1.5]} camera={{ position: [0, 0, CAMERA_DISTANCE], fov: FOV, near: 0.05, far: 5000 }}>
+      <Canvas dpr={[1, 1.5]} camera={{ position: [0, 0.55 * CAMERA_DISTANCE, 0.835 * CAMERA_DISTANCE], fov: FOV, near: 0.05, far: 5000 }}>
         <ambientLight intensity={0.6} />
         <directionalLight position={[5, 8, 10]} intensity={2} />
         <World />
