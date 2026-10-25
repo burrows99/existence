@@ -1,19 +1,19 @@
 // A volume of space filled by a medium: an octree of regions that know their absolute position, so what is
 // at a point can be a function of where it is (inside the nucleus, near a membrane, below the crust…).
 // Regions at `placeDepth` may place things (molecules, cells…) that the leaves then leave room for.
-import { childrenOf, hash, mulberry32, type ChildSpec, type Far, type Kind, type Node, type Vec3 } from '../engine/tree'
+import { childrenOf, hash, kindOf, mulberry32, type ChildSpec, type Far, type Kind, type Node, type Vec3 } from '../engine/tree'
 
 export type Region = { c: Vec3; s: number; depth: number } // centre and side, in root units
 export type Inclusion = { node: Node; c: Vec3; s: number } // a placed thing, in leaf units
 
 export type Volume = {
-  metres: number // root cube side
-  leafDepth: number
-  placeDepth?: number
+  leafDepth: (root: Node) => number
+  placeDepth?: (root: Node) => number
   placements?: (r: Region, rng: () => number, node: Node) => ChildSpec[] // pos/size in region units
   fill: (r: Region, rng: () => number, leaf: Node) => ChildSpec[] // leaf contents, pos in leaf units
-  far: (r: Region, node: Node) => Far | null
-  open?: (r: Region) => number
+  far: (r: Region, node: Node) => Far | Far[] | null
+  open?: (r: Region, root: Node) => number
+  radius?: number // the thing's own extent as a fraction of its cube, for keeping other things out of it
   Near?: Kind['Near'] // drawn for the root only
   nearMax?: number // hide the Near once the root spans more than this many views
   info: (r: Region, node: Node) => { title: string; fact?: string }
@@ -21,7 +21,8 @@ export type Volume = {
 
 export const rootProps = { depth: 0, x: 0, y: 0, z: 0, s: 1 }
 export const regionOf = (n: Node): Region => ({ c: [n.props.x as number, n.props.y as number, n.props.z as number], s: n.props.s as number, depth: n.props.depth as number })
-export const rootOf = (n: Node) => { while (n.parent) n = n.parent; return n }
+// the top of this volume: regions share their root's kind
+export const volumeRoot = (n: Node) => { while (n.parent && n.parent.kind === n.kind) n = n.parent; return n }
 
 const placed = new WeakMap<Node, ChildSpec[]>()
 function placementsOf(v: Volume, n: Node) {
@@ -32,9 +33,10 @@ function placementsOf(v: Volume, n: Node) {
 
 // things placed by the ancestor region that reach into this leaf, in leaf units
 export function inclusions(v: Volume, leaf: Node): Inclusion[] {
-  if (v.placeDepth === undefined) return []
+  if (!v.placeDepth) return []
+  const pd = v.placeDepth(volumeRoot(leaf))
   let a: Node | undefined = leaf
-  while (a && a.props.depth !== v.placeDepth) a = a.parent
+  while (a && a.props.depth !== pd) a = a.parent
   if (!a) return []
   const L = regionOf(leaf), A = regionOf(a)
   const out: Inclusion[] = []
@@ -47,9 +49,12 @@ export function inclusions(v: Volume, leaf: Node): Inclusion[] {
   return out
 }
 
-// would a sphere (leaf units) overlap any atom of the placed thing?
+// would a sphere (leaf units) overlap the placed thing: its atoms, or its own extent if it is a volume?
 export function hitsAtoms(inc: Inclusion, p: Vec3, r: number) {
-  if (Math.hypot(p[0] - inc.c[0], p[1] - inc.c[1], p[2] - inc.c[2]) - r > inc.s / 2) return false
+  const d = Math.hypot(p[0] - inc.c[0], p[1] - inc.c[1], p[2] - inc.c[2])
+  const kind = kindOf(inc.node.kind)
+  if (kind?.space) return d < (kind.radius ?? 0.5) * inc.s + r
+  if (d - r > inc.s / 2) return false
   for (const a of childrenOf(inc.node)) {
     const ar = (a.size / 2) * inc.s
     if (Math.hypot(p[0] - inc.c[0] - a.pos[0] * inc.s, p[1] - inc.c[1] - a.pos[1] * inc.s, p[2] - inc.c[2] - a.pos[2] * inc.s) < ar + r) return true
@@ -60,7 +65,8 @@ export function hitsAtoms(inc: Inclusion, p: Vec3, r: number) {
 export function volume(v: Volume): Kind {
   return {
     space: true,
-    open: n => v.open?.(regionOf(n)) ?? 0.1,
+    radius: v.radius,
+    open: n => v.open?.(regionOf(n), volumeRoot(n)) ?? 0.1,
     far: n => v.far(regionOf(n), n),
     Near: v.Near,
     nearFor: n => n.props.depth === 0,
@@ -68,12 +74,13 @@ export function volume(v: Volume): Kind {
     info: n => v.info(regionOf(n), n),
     children: (node, rng) => {
       const r = regionOf(node)
-      if (r.depth < v.leafDepth) {
+      const root = volumeRoot(node)
+      if (r.depth < v.leafDepth(root)) {
         const kids: ChildSpec[] = []
         for (const x of [-0.25, 0.25]) for (const y of [-0.25, 0.25]) for (const z of [-0.25, 0.25]) {
-          kids.push({ kind: node.kind, pos: [x, y, z], size: 0.5, props: { depth: r.depth + 1, x: r.c[0] + x * r.s, y: r.c[1] + y * r.s, z: r.c[2] + z * r.s, s: r.s / 2 } })
+          kids.push({ kind: node.kind, pos: [x, y, z], size: 0.5, props: { ...node.props, depth: r.depth + 1, x: r.c[0] + x * r.s, y: r.c[1] + y * r.s, z: r.c[2] + z * r.s, s: r.s / 2 } })
         }
-        if (r.depth === v.placeDepth && v.placements) kids.push(...placementsOf(v, node))
+        if (v.placements && r.depth === v.placeDepth?.(root)) kids.push(...placementsOf(v, node))
         return kids
       }
       return v.fill(r, rng, node)

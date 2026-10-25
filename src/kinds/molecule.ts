@@ -10,8 +10,8 @@ type Molecule = {
   head?: Vec3; tail?: Vec3 // lipids: oriented head-up (+Y); where the head and tail end sit
 }
 
-export const IDS = ['1MYF', '2HIU', '1NAJ', '5957', '5793', 'POV', 'CLR']
-export const M = { MYOGLOBIN: 0, INSULIN: 1, DNA: 2, ATP: 3, GLUCOSE: 4, POPC: 5, CHOLESTEROL: 6 }
+export const IDS = ['1MYF', '2HIU', '1NAJ', '5957', '5793', 'POV', 'CLR', '1D3Z', 'TGL']
+export const M = { MYOGLOBIN: 0, INSULIN: 1, DNA: 2, ATP: 3, GLUCOSE: 4, POPC: 5, CHOLESTEROL: 6, UBIQUITIN: 7, FAT: 8 }
 export const LIB: Molecule[] = await Promise.all(
   IDS.map(id => fetch(`${import.meta.env.BASE_URL}data/molecules/${id}.json`).then(r => r.json())),
 )

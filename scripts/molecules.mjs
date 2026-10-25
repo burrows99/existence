@@ -19,6 +19,10 @@ const MOLECULES = [
     fact: 'A phosphatidylcholine: a charged phosphate head that loves water and two fatty-acid tails that hate it. Billions of them, tails inward, make every membrane in you.' },
   { id: 'CLR', name: 'Cholesterol', color: '#e8c872', src: 'ccd', lipid: true, head: 8,
     fact: 'Four stiff carbon rings wedged between the phospholipids. About a third of the lipids in an animal cell membrane are cholesterol, which keeps the membrane firm.' },
+  { id: '1D3Z', name: 'Ubiquitin', color: '#c8a2c8', src: 'pdb',
+    fact: 'A small protein found in every cell of every animal, plant and fungus, unchanged for a billion years. It tags other proteins for recycling. 76 amino acids.' },
+  { id: 'TGL', name: 'Fat (tristearin)', color: '#f7e27a', src: 'ccd',
+    fact: 'A triglyceride: three stearic-acid chains on a glycerol backbone. Fat cells are droplets of this; it stores 9 kilocalories per gram, twice what sugar does.' },
 ]
 
 const elements = JSON.parse(await readFile(new URL('../src/data/elements.json', import.meta.url), 'utf8'))

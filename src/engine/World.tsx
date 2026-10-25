@@ -116,7 +116,8 @@ export function World() {
     const put = (far: Far, rel: Vec3, diameter: number) => {
       const b = far.glow ? batches.glow : far.shape === 'box' ? batches.box : far.shape === 'haze' ? batches.haze : batches.solid
       if (b.count >= CAP) return
-      const d = Math.max(diameter * k * (far.shape === 'haze' ? 0.7 : 1), far.minPx ? (far.minPx * VIEW) / size.height : 0)
+      const d = Math.max(diameter * k * (far.scale ?? (far.shape === 'haze' ? 0.7 : 1)), far.minPx ? (far.minPx * VIEW) / size.height : 0)
+      if (d < (0.5 * VIEW) / size.height) return // sub-pixel
       b.setMatrixAt(b.count, m.compose(p.set(rel[0] * k, rel[1] * k, rel[2] * k), q, sc.set(d, d, d)))
       b.setColorAt(b.count++, colorOf(far.color, far.glow))
     }
@@ -132,7 +133,8 @@ export function World() {
       const z = rel[0] * back.x + rel[1] * back.y + rel[2] * back.z
       // cutaway: cull what is in front of the focus plane, except point-like things, which never occlude
       const far = n.far === undefined ? (n.far = kind.far(n)) : n.far
-      if (Math.abs(x) - r > halfW || Math.abs(y) - r > halfH || -z - r > depth || (z - r > front && !far?.minPx)) return
+      const pointLike = !!far && !Array.isArray(far) && !!far.minPx
+      if (Math.abs(x) - r > halfW || Math.abs(y) - r > halfH || -z - r > depth || (z - r > front && !pointLike)) return
       n.seen = f
 
       // where this lands on screen, for picking
@@ -157,8 +159,13 @@ export function World() {
         if (kind.Near && (kind.nearFor?.(n) ?? true) && span > (kind.near ?? openAt) && span < (kind.nearMax ?? Infinity)) nearList.push({ node: n, rel, s })
         return
       }
-      if (!far || (!far.minPx && s * pxPerUnit < 0.5)) return // empty space, or sub-pixel
-      if (per) {
+      if (!far) return // empty space
+      if (Array.isArray(far)) { // a closed region drawn as a sample of what it holds: not something to lock on to
+        for (const f of far) put(f, f.pos ? [rel[0] + f.pos[0] * s, rel[1] + f.pos[1] * s, rel[2] + f.pos[2] * s] : rel, s)
+        return
+      }
+      if (!far.minPx && s * pxPerUnit < 0.5) return // sub-pixel
+      if (per && !kind.space) {
         const rr = Math.max(rpx, (far.minPx ?? 0) / 2)
         if (d2 < rr * rr && z > pick.solidZ) { pick.solid = n; pick.solidZ = z }
         if (d2 < pick.nearD * pick.nearD) { pick.near = n; pick.nearD = Math.sqrt(d2) }
