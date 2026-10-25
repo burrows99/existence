@@ -1,1 +1,15 @@
-html, body, #root { margin: 0; height: 100%; background: #111; }
+html, body, #root { margin: 0; height: 100%; background: #05060a; overflow: hidden; }
+body { font-family: system-ui, sans-serif; color: #e8ecf4; }
+
+.hud { position: fixed; top: 24px; left: 24px; max-width: min(360px, calc(100vw - 180px)); pointer-events: none; }
+.hud .size { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.hud .friendly { opacity: 0.6; margin-bottom: 16px; }
+.hud h1 { font-size: 20px; margin: 0 0 6px; }
+.hud p { margin: 0; line-height: 1.45; opacity: 0.85; }
+.hud .tag { font-size: 11px; font-weight: 500; margin-left: 8px; padding: 2px 6px; border: 1px solid #b48cff; color: #b48cff; border-radius: 4px; vertical-align: middle; }
+.hud .hint { position: fixed; bottom: 16px; left: 24px; font-size: 12px; opacity: 0.45; }
+
+.ruler { position: fixed; top: 32px; bottom: 32px; right: 24px; width: 140px; border-right: 1px solid #ffffff30; }
+.ruler button { position: absolute; right: 8px; transform: translateY(-50%); background: none; border: 0; padding: 0 2px; font: 11px system-ui, sans-serif; cursor: pointer; opacity: 0.75; white-space: nowrap; }
+.ruler button:hover, .ruler button:focus-visible { opacity: 1; text-decoration: underline; }
+.ruler .marker { position: absolute; right: -6px; width: 11px; height: 2px; background: #fff; transform: translateY(-50%); }
