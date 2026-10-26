@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { AdditiveBlending, DoubleSide } from 'three'
 import { inSphere } from 'maath/random'
-import { mulberry32, type ChildSpec, type Kind, type Node, type Vec3 } from '../engine/tree'
+import { mulberry32, type ChildSpec, type Far, type Kind, type Node, type Vec3 } from '../engine/tree'
 import { element, orbitals, sampleOrbital } from './orbitals.ts'
 
 const FM = 1e-15
@@ -10,30 +10,17 @@ const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹'
 const sup = (s: string | number) => String(s).replace(/\d/g, d => SUP[+d])
 const count = (n: number, word: string) => (n === 0 ? `no ${word}s` : n === 1 ? `1 ${word}` : `${n} ${word}s`)
 
-const CLOUD = 1200 // samples per electron
-function Cloud({ node }: { node: Node }) {
-  const positions = useMemo(() => {
-    const rng = mulberry32(node.seed ^ 0x9e3779b9)
-    const electrons = (node.props.z as number) - ((node.props.q as number) ?? 0)
-    const orbs = electrons > 0 ? orbitals(electrons) : []
-    const out = new Float32Array(orbs.length * CLOUD * 3)
-    let i = 0
-    for (const o of orbs) for (let j = 0; j < CLOUD; j++) {
-      const p = sampleOrbital(o, rng)
-      out[i++] = p[0] / node.metres
-      out[i++] = p[1] / node.metres
-      out[i++] = p[2] / node.metres
-    }
-    return out
-  }, [node])
-  return (
-    <points>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-      </bufferGeometry>
-      <pointsMaterial size={2} sizeAttenuation={false} color="#6fe3ff" transparent opacity={0.55} blending={AdditiveBlending} depthWrite={false} />
-    </points>
-  )
+const CLOUD = 400 // samples per electron
+// where the electrons are likely to be: samples of each orbital's probability density, drawn while the atom is open
+function cloud(node: Node): Far[] {
+  const rng = mulberry32(node.seed ^ 0x9e3779b9)
+  const electrons = (node.props.z as number) - ((node.props.q as number) ?? 0)
+  const out: Far[] = []
+  if (electrons > 0) for (const o of orbitals(electrons)) for (let j = 0; j < CLOUD; j++) {
+    const p = sampleOrbital(o, rng)
+    out.push({ shape: 'point', color: '#6fe3ff', alpha: 0.55, pos: [p[0] / node.metres, p[1] / node.metres, p[2] / node.metres] })
+  }
+  return out
 }
 
 const atom: Kind = {
@@ -50,7 +37,7 @@ const atom: Kind = {
     }
     return out
   },
-  Near: Cloud,
+  inner: cloud,
   info: n => {
     const [z, sym, name, A] = element(n.props.z as number), q = (n.props.q as number) ?? 0
     const cfg = z - q > 0 ? element(z - q)[4] : 'none'

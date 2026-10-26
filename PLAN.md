@@ -52,11 +52,14 @@ type Child = { kind: string; pos: Vec3; size: number; seed: number }  // pos/siz
 - When the view gets much smaller than a child containing the focus, we **descend** into it and convert the focus point into the child's coordinates. When the view gets much bigger than the current node, we **ascend**. The numbers therefore stay small forever: no float limits from the quark to the universe.
 - JS numbers are 64-bit, so positions are computed in float64 relative to the camera and only then handed to the GPU as float32.
 
-### 3. Level-of-detail renderer
+### 3. Level-of-detail renderer (chunked, GPU-driven)
 
-- Starting a few levels above the current node, walk down the tree. A node is **opened** (children generated and drawn) if it appears bigger than a threshold on screen, otherwise its `Far` look is drawn.
-- Per-kind **instancing**: thousands of water molecules or atoms are one draw call each.
-- A frame budget caps how many nodes open at once; far ones close first.
+How Minecraft draws a world and how Mol* draws a million atoms, combined:
+
+- Starting a few levels above the current node, walk down the tree. A node is **opened** (children generated and drawn) if it appears bigger than a threshold on screen, otherwise its `far` look is drawn: a sphere/haze/point, a *sample* of what it holds (thinned on the GPU as it shrinks), or its `detail` (a molecule's exact atoms) once it is a few pixels across.
+- Every open node owns a **chunk**: one packed buffer of its closed children's items, in its own units, rebuilt only when which of its children are open changes (like a Minecraft chunk mesh). Per frame the CPU uploads one transform per chunk (a 128×128 float texture); the GPU places, jitters, cuts away and thins every item. While the view stands still nothing is walked at all.
+- **Spheres are ray-cast impostors** (two triangles each, depth written per pixel, like Mol*), so half a million atoms are one draw call. Five batches in all: spheres, haze, cubes, boxes, points.
+- What is in play is the screen rectangle × the cutaway slab, so dense matter stays bounded (~500k atoms of seawater); kinds marked `deep` (space) draw as far behind as beside. Generation is budgeted (7 ms per walk), nearest first; the farthest chunks are what any cap cuts off.
 
 ### 4. URL = location
 
@@ -66,8 +69,8 @@ type Child = { kind: string; pos: Vec3; size: number; seed: number }  // pos/siz
 
 - Scrolling aims at whatever is under the cursor: the nearest solid thing, else the smallest opened thing, else anything within 24 px. Picking happens in the draw pass itself (every node's screen position is already known there), not with a raycaster.
 - Once the camera is inside the thing you scrolled into, it **locks on**: the centre glides to the middle of the view, so zooming into an atom lands on its nucleus.
-- A **cutaway** hides matter in front of the focus plane (you are inside a liquid, after all); point-like things are exempt because they never occlude.
-- Files: `src/engine/tree.ts` (nodes, kinds, seeds, eviction), `src/engine/camera.ts` (zoom, re-rooting, lock-on, URL), `src/engine/World.tsx` (traversal, instancing, picking), `src/kinds/*` (what things are made of). `npm test` checks the orbital maths.
+- A **cutaway** shows a slab from just in front of the focus plane to 0.6 views behind it (you are inside a liquid, after all); points are exempt because they never occlude.
+- Files: `src/engine/tree.ts` (nodes, kinds, seeds, eviction), `src/engine/camera.ts` (zoom, re-rooting, lock-on, URL), `src/engine/World.tsx` (walk, chunks, shaders, picking), `src/kinds/*` (what things are made of). `npm test` checks the orbital maths. In dev, `window.__perf` reports walk time, chunk and item counts and generation time by kind.
 
 ## Real data sources (minimise custom work)
 
@@ -98,7 +101,7 @@ Each phase is one PR against `main`, merged = live on https://burrows99.github.i
 | **E. Earth** ✅ | Layers by depth: hexagonal close-packed iron inner core, liquid iron outer core, forsterite mantle, quartz crust (real unit cells from the Crystallography Open Database, tiled through 1.5 µm grains with random orientations, like a polycrystalline rock), 4 km oceans of seawater with Na⁺/Cl⁻ ions under procedural continents, 100 km of air thinning with altitude, and the person standing on a continent, rotated to the local vertical. Landmarks menu. Not yet: real coastlines and terrain, soil, lower-mantle minerals, granite's other minerals, weather. |
 | **F. Solar system** ✅ | The Sun as a volume of plasma (protons, helium nuclei, free electrons, densest at the core), eight planets and the Moon at today's positions from VSOP87 (`astronomy-engine`), rocky planets layered iron/rock with CO₂ air, gas giants of H₂/He thickening into metallic hydrogen, our Earth placed where it really is. Orbit lines. Not yet: rings, moons other than ours, asteroids, comets, the solar wind; HYG stars move to Phase G. |
 | **G. Galaxy → universe** ✅ | The Milky Way as an exponential disc with two spiral arms and a bulge, stars drawn from the Kroupa initial mass function at the local density (each a real plasma volume), the solar system 26,000 ly out; the observable universe as a cosmic web of galaxies from a noise field with the Milky Way at the centre, Andromeda 2.5 Mly away, and the CMB sphere at the edge. Not yet: real star catalogues (HYG), real galaxy surveys, dark matter, the interstellar medium. |
-| **H. Polish** | Terrain and real coastlines, real star and galaxy catalogues, search, a guided tour, touch/pinch on phones, LOD and loading polish. |
+| **H. Polish** | ✅ Performance: the chunked, impostor-sphere renderer above (every landmark view at the display's refresh rate; dense views went from 17–36 ms of CPU per frame to 0 while still). Still to do: terrain and real coastlines, real star and galaxy catalogues, search, a guided tour, touch/pinch on phones, rock drawn as solid cubes rather than haze up close. |
 | **I. Multiverse** | Sibling universes as seeds; clearly labelled as hypothesis. |
 
 ## Non-goals (honest limits)

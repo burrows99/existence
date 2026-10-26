@@ -98,8 +98,9 @@ function StarCloud({ node }: { node: Node }) {
 }
 
 const galaxy: Volume = {
+  deep: true,
   leafDepth: () => LEAF_DEPTH,
-  open: () => 0.1,
+  open: () => 0.25, // coarser than most kinds: 48 points per region is the picture, and a tighter grid of them is a white wall
   Near: StarCloud,
   nearMax: 40, // the cloud is the picture down to ~3,000 light-years; inside that the regions take over
 

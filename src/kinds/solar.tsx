@@ -46,6 +46,7 @@ function Orbits() {
 }
 
 const solar: Volume = {
+  deep: true,
   leafDepth: () => 1,
   placeDepth: () => 0,
   placements: () => bodies(),

@@ -1,5 +1,6 @@
 import { Vector3 } from 'three'
 import { randomRotation, type ChildSpec, type Kind, type Vec3 } from '../engine/tree'
+import { ATOMS } from './molecule'
 
 export const H2O = 0.44e-9 // H₂O bounding diameter: O (152 pm vdW) + O–H bond + H (120 pm)
 const WATER = 33.4e27 // molecules per m³ of liquid water
@@ -61,7 +62,8 @@ const CENTRE = new Vector3(0, (Math.cos(ANGLE / 2) * BOND) / 3, 0)
 const VDW: Record<number, number> = { 1: 120e-12, 7: 155e-12, 8: 152e-12 }
 
 const h2o: Kind = {
-  open: 0.01, // opens into its atoms almost immediately: never shown as a blob
+  open: 0.3,
+  detail: ATOMS,
   jitter: 10e-12, // thermal vibration, ~0.1 Å
   far: () => ({ shape: 'sphere', color: '#9fd3ff' }),
   children: (_, rng) => {
@@ -77,7 +79,8 @@ const h2o: Kind = {
 // a diatomic molecule, drawn 0.42 nm across
 function diatomic(z: number, bond: number, color: string, title: string, fact: string): Kind {
   return {
-    open: 0.01,
+    open: 0.3,
+    detail: ATOMS,
     jitter: 10e-12,
     far: () => ({ shape: 'sphere', color }),
     children: (_, rng) => {
@@ -90,7 +93,8 @@ function diatomic(z: number, bond: number, color: string, title: string, fact: s
 
 // carbon dioxide: linear, C=O 1.16 Å
 const co2: Kind = {
-  open: 0.01,
+  open: 0.3,
+  detail: ATOMS,
   jitter: 10e-12,
   far: () => ({ shape: 'sphere', color: '#b0b0b0' }),
   children: (_, rng) => {

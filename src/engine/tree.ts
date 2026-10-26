@@ -16,7 +16,8 @@ export type Node = {
   metres: number // diameter, in metres
   children?: Node[]
   far?: Far | Far[] | null
-  seen?: number // last frame this node was drawn; stale subtrees get evicted
+  open?: number // cached: the view fraction this node must span before its children are drawn instead
+  seen?: number // last walk this node was drawn in; stale subtrees get evicted
 }
 
 export type ChildSpec = { kind: string; pos: Vec3; size: number; props?: Props }
@@ -34,13 +35,18 @@ export type Far = {
 export type Kind = {
   // deterministic in node.seed: the same node always regenerates the same contents
   children?: (node: Node, rng: () => number) => ChildSpec[]
-  far: (node: Node) => Far | Far[] | null // null: draw nothing when closed (empty space)
+  far: (node: Node) => Far | Far[] | null // null: draw nothing when closed (empty space); an array is a sample, thinned when small
+  detail?: { at: number; far: (node: Node) => Far[] } // what a closed node is drawn as instead once it spans `at` of the view
+  inner?: (node: Node) => Far[] // drawn inside an open node, in its units, besides its children (an atom's electron cloud)
   Near?: ComponentType<{ node: Node }> // detail drawn in node units while the node is open
   nearFor?: (node: Node) => boolean // which nodes of this kind get a Near (default: all)
+  nearOnPath?: boolean // only the one the camera is inside gets its Near (its neighbours would be the same picture many times over)
   open?: number | ((node: Node) => number) // fraction of the view height a node must span to open (default 0.3)
   near?: number // same, for Near (default: open)
+  nearMin?: number // no Near until the node spans this fraction of the view (default 0)
   nearMax?: number // and no Near once the node spans more than this many views (deep inside it)
   space?: boolean // just a region of space: never something to lock on to
+  deep?: boolean // nothing opaque in here (stars, galaxies): drawn as far behind the focus as beside it, not just the cutaway slab
   inside?: (node: Node, p: Vec3) => boolean // for space kinds: is a point (node units) inside the thing itself?
   jitter?: number // thermal / confinement motion amplitude, metres
   info: (node: Node) => { title: string; fact?: string }

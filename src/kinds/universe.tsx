@@ -47,6 +47,7 @@ const SPECIAL: [Vec3, Record<string, number | string>][] = [
 ]
 
 const universe: Volume = {
+  deep: true,
   leafDepth: () => LEAF_DEPTH,
   open: () => 0.1,
   Near: () => (

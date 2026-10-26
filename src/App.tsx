@@ -23,7 +23,7 @@ export default function App() {
         <directionalLight position={[5, 8, 10]} intensity={2} />
         <World />
         <OrbitControls enableZoom={false} enablePan={false} />
-        <EffectComposer>
+        <EffectComposer resolutionScale={0.5}>
           <Bloom mipmapBlur luminanceThreshold={1} intensity={1} />
         </EffectComposer>
       </Canvas>

@@ -14,15 +14,23 @@ export type Volume = {
   far: (r: Region, node: Node) => Far | Far[] | null
   open?: (r: Region, root: Node) => number
   inside?: (node: Node, p: Vec3) => boolean // is this point (node units) inside the thing itself, not just its cube?
+  deep?: boolean // nothing opaque in here: see Kind.deep
   Near?: Kind['Near'] // drawn for the root only
+  nearMin?: number // and only once the root spans this fraction of the view
   nearMax?: number // hide the Near once the root spans more than this many views
+  nearOnPath?: boolean // and only for the one the camera is inside
   info: (r: Region, node: Node) => { title: string; fact?: string }
 }
 
 export const rootProps = { depth: 0, x: 0, y: 0, z: 0, s: 1 }
 export const regionOf = (n: Node): Region => ({ c: [n.props.x as number, n.props.y as number, n.props.z as number], s: n.props.s as number, depth: n.props.depth as number })
-// the top of this volume: regions share their root's kind
-export const volumeRoot = (n: Node) => { while (n.parent && n.parent.kind === n.kind) n = n.parent; return n }
+// the top of this volume: regions share their root's kind (memoised: asked for every region, every frame)
+const roots = new WeakMap<Node, Node>()
+export function volumeRoot(n: Node): Node {
+  let r = roots.get(n)
+  if (!r) roots.set(n, (r = n.parent && n.parent.kind === n.kind ? volumeRoot(n.parent) : n))
+  return r
+}
 
 const placed = new WeakMap<Node, ChildSpec[]>()
 function placementsOf(v: Volume, n: Node) {
@@ -65,12 +73,15 @@ export function hitsAtoms(inc: Inclusion, p: Vec3, r: number) {
 export function volume(v: Volume): Kind {
   return {
     space: true,
+    deep: v.deep,
     inside: v.inside,
     open: n => v.open?.(regionOf(n), volumeRoot(n)) ?? 0.1,
     far: n => v.far(regionOf(n), n),
     Near: v.Near,
     nearFor: n => n.props.depth === 0,
+    nearMin: v.nearMin,
     nearMax: v.nearMax,
+    nearOnPath: v.nearOnPath,
     info: n => v.info(regionOf(n), n),
     children: (node, rng) => {
       const r = regionOf(node)
