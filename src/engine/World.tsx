@@ -17,7 +17,7 @@ export const FOV = 50
 const VIEW = 2 * CAMERA_DISTANCE * Math.tan(MathUtils.degToRad(FOV / 2)) // scene units across the view height
 type Batch = 'sphere' | 'haze' | 'cube' | 'box' | 'point'
 const BATCHES: Batch[] = ['sphere', 'haze', 'cube', 'box', 'point']
-const CAP: Record<Batch, number> = { sphere: 500000, haze: 100000, cube: 100000, box: 50000, point: 300000 } // items per batch; beyond it the farthest chunks go
+const CAP: Record<Batch, number> = { sphere: 500000, haze: 100000, cube: 100000, box: 50000, point: 600000 } // items per batch; beyond it the farthest chunks go
 const TEX_W = 128 // chunk transform texture: one texel (offset.xyz, scale) per chunk
 const MAX_CHUNKS = TEX_W * TEX_W
 const FRONT = 0.1, DEPTH = 0.6 // cutaway: solid things are drawn from this far in front of the focus plane to this far behind it, in view heights
@@ -169,6 +169,7 @@ function buildChunk(n: Node, kind: Kind, kids: Node[], closed: Node[], sig: stri
 export function World() {
   const { camera, gl, size } = useThree()
   const nearRefs = useRef(new Map<string, Group>())
+  const nearPlace = useRef(new Map<string, { rel: Vec3; s: number; k: number }>()) // where each Near goes, for groups that mount after the walk
   const [near, setNear] = useState<Node[]>([])
   const nearKey = useRef('')
   const walks = useRef(0)
@@ -215,7 +216,6 @@ export function World() {
     buffers.haze.object.renderOrder = 1
     buffers.box.object.renderOrder = 1
     buffers.point.object.renderOrder = 2
-    if (import.meta.env.DEV) Object.assign(window, { __gpu: { tex, uniforms, buffers } })
     return { tex, texData, uniforms, buffers }
   }, [camera])
 
@@ -361,7 +361,9 @@ export function World() {
       }
       gpu.tex.needsUpdate = true
 
+      nearPlace.current.clear()
       for (const e of nearList) {
+        nearPlace.current.set(e.node.key, { rel: e.rel, s: e.s, k })
         const g = nearRefs.current.get(e.node.key)
         g?.position.set(e.rel[0] * k, e.rel[1] * k, e.rel[2] * k)
         g?.scale.setScalar(e.s * k)
@@ -388,11 +390,13 @@ export function World() {
       const pick: Pick = { solidZ: -Infinity, openR: Infinity, nearD: SNAP }
       for (const v of shown) {
         const z = v.rel[0] * back.x + v.rel[1] * back.y + v.rel[2] * back.z
-        if (z >= D) continue
-        const per = (D / (D - z)) * pxPerUnit
-        const x = v.rel[0] * right.x + v.rel[1] * right.y + v.rel[2] * right.z, y = v.rel[0] * up.x + v.rel[1] * up.y + v.rel[2] * up.z
-        const rpx = (v.s / 2) * per, dx = x * per - cx, dy = y * per - cy
-        if (!kindOf(v.n.kind)?.space && dx * dx + dy * dy < rpx * rpx && rpx < pick.openR) { pick.open = v.n; pick.openR = rpx }
+        if (z - v.s * 0.87 >= D) continue // wholly behind the camera (its centre may be, while things in it are not)
+        if (z < D && !kindOf(v.n.kind)?.space) {
+          const per = (D / (D - z)) * pxPerUnit
+          const x = v.rel[0] * right.x + v.rel[1] * right.y + v.rel[2] * right.z, y = v.rel[0] * up.x + v.rel[1] * up.y + v.rel[2] * up.z
+          const rpx = (v.s / 2) * per, dx = x * per - cx, dy = y * per - cy
+          if (dx * dx + dy * dy < rpx * rpx && rpx < pick.openR) { pick.open = v.n; pick.openR = rpx }
+        }
         for (const b of BATCHES) {
           const d = v.chunk.data[b], own = v.chunk.owners[b]
           for (let i = 0; i < v.chunk.count[b]; i++) {
@@ -430,7 +434,7 @@ export function World() {
       wh.retarget = false
     }
 
-    if (import.meta.env.DEV) Object.assign(window, { __perf: { ms: performance.now() - t0, walks: walks.current, complete: complete.current, uploads: uploads.current, chunks: shown.length, items: Object.fromEntries(BATCHES.map(b => [b, gpu.buffers[b].geometry instanceof InstancedBufferGeometry ? gpu.buffers[b].geometry.instanceCount : gpu.buffers[b].geometry.drawRange.count])), near: near.length, gen: lastGen.current } })
+    if (import.meta.env.DEV) Object.assign(window, { __gpu: gpu, __perf: { ms: performance.now() - t0, walks: walks.current, complete: complete.current, uploads: uploads.current, chunks: shown.length, items: Object.fromEntries(BATCHES.map(b => [b, gpu.buffers[b].geometry instanceof InstancedBufferGeometry ? gpu.buffers[b].geometry.instanceCount : gpu.buffers[b].geometry.drawRange.count])), near: near.length, gen: lastGen.current } })
   })
 
   return (
@@ -439,7 +443,12 @@ export function World() {
       {near.map(n => {
         const Near = kindOf(n.kind)!.Near!
         return (
-          <group key={n.key} ref={g => { if (g) nearRefs.current.set(n.key, g); else nearRefs.current.delete(n.key) }}>
+          <group key={n.key} ref={g => {
+            if (!g) { nearRefs.current.delete(n.key); return }
+            nearRefs.current.set(n.key, g)
+            const p = nearPlace.current.get(n.key) // placed now: the walk that asked for it has already run
+            if (p) { g.position.set(p.rel[0] * p.k, p.rel[1] * p.k, p.rel[2] * p.k); g.scale.setScalar(p.s * p.k) }
+          }}>
             <Near node={n} />
           </group>
         )

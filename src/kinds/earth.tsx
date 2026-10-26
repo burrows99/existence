@@ -1,8 +1,10 @@
-// Earth: layers by depth (hexagonal iron inner core, molten outer core, olivine mantle, quartz crust), oceans
-// under procedural continents, air thinning for 100 km, and one person standing on a continent.
-import { useMemo } from 'react'
-import { BufferAttribute, Color, SphereGeometry } from 'three'
-import { kindOf, type ChildSpec, type Vec3 } from '../engine/tree'
+// Earth: layers by depth (hexagonal iron inner core, molten outer core, olivine mantle, quartz crust), the real
+// surface (NOAA ETOPO2 elevation: oceans where it is below sea level, ground where it is above, with the countries
+// of Natural Earth drawn on NASA's Blue Marble), air thinning for 100 km, and one person standing in France.
+import { Suspense, useMemo } from 'react'
+import { useLoader } from '@react-three/fiber'
+import { BufferGeometry, Float32BufferAttribute, SRGBColorSpace, TextureLoader } from 'three'
+import { kindOf, type ChildSpec, type Node, type Vec3 } from '../engine/tree'
 import { rootProps, volume, type Region, type Volume } from './volume'
 
 const SIDE = 1.3e7 // metres
@@ -10,37 +12,59 @@ const R = 6.371e6 / SIDE
 const KM = 1e3 / SIDE
 const LEAF_DEPTH = 43 // 1.48 µm blocks of rock, water or air
 const PLACE_DEPTH = 20 // 12.4 m regions; one of them holds the person
-const CORE_INNER = 1220 * KM, CORE_OUTER = 3480 * KM, CRUST = R - 30 * KM, OCEAN = R - 4 * KM, SKY = R + 100 * KM
+const CORE_INNER = 1220 * KM, CORE_OUTER = 3480 * KM, CRUST = R - 30 * KM, SKY = R + 100 * KM
 
 type Material = 'space' | 'air' | 'water' | 'quartz' | 'forsterite' | 'melt' | 'iron'
 const len = (v: Vec3) => Math.hypot(v[0], v[1], v[2])
 
-// continents: caps around a few fixed directions
-const CONTINENTS: [Vec3, number][] = [
-  [[0.707, 0.707, 0], 0.5], [[-0.3, 0.45, 0.84], 0.55], [[-0.75, -0.2, -0.62], 0.6], [[0.35, -0.55, 0.76], 0.4], [[0.1, 0.2, -0.97], 0.45], [[0.9, -0.3, -0.3], 0.3],
-]
-export function landAt(dir: Vec3) {
-  return CONTINENTS.some(([c, w]) => Math.acos(Math.max(-1, Math.min(1, dir[0] * c[0] + dir[1] * c[1] + dir[2] * c[2]))) < w)
+// ---- the real surface (prepared by scripts/earth.mjs) -------------------------------------------------------
+// the sphere's +y is north and longitude 0 is +x, as the equirectangular textures wrap onto a three.js sphere
+const DATA = `${import.meta.env.BASE_URL}data/earth/`
+const ELEV = await (async () => { // 2048×1024: G,B = metres above sea level + 11000, high byte first
+  const bmp = await createImageBitmap(await (await fetch(DATA + 'elevation.png')).blob(), { colorSpaceConversion: 'none' })
+  const ctx = new OffscreenCanvas(bmp.width, bmp.height).getContext('2d')!
+  ctx.drawImage(bmp, 0, 0)
+  return { w: bmp.width, h: bmp.height, px: ctx.getImageData(0, 0, bmp.width, bmp.height).data }
+})()
+const COUNTRIES: { n: string; r: number[][] }[] = await fetch(DATA + 'countries.json').then(r => r.json())
+
+const latLon = (d: Vec3): [number, number] => [(Math.asin(Math.max(-1, Math.min(1, d[1]))) * 180) / Math.PI, (Math.atan2(-d[2], d[0]) * 180) / Math.PI]
+export function elevationAt(d: Vec3) { // metres above sea level in direction d (unit vector); ETOPO2 averaged to 20 km
+  const [lat, lon] = latLon(d)
+  const i = Math.min(ELEV.w - 1, Math.floor(((lon + 180) / 360) * ELEV.w)), j = Math.min(ELEV.h - 1, Math.floor(((90 - lat) / 180) * ELEV.h))
+  const k = (j * ELEV.w + i) * 4
+  return ELEV.px[k + 1] * 256 + ELEV.px[k + 2] - 11000
+}
+export function countryAt(d: Vec3): string | null { // even-odd over every ring of every country
+  const [lat, lon] = latLon(d)
+  for (const c of COUNTRIES) {
+    let inside = false
+    for (const r of c.r) for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) {
+      if (r[i + 1] > lat !== r[j + 1] > lat && lon < r[j] + ((lat - r[j + 1]) * (r[i] - r[j])) / (r[i + 1] - r[j + 1])) inside = !inside
+    }
+    if (inside) return c.n
+  }
+  return null
 }
 
 export function materialAt(p: Vec3): Material {
   const r = len(p)
   if (r > SKY) return 'space'
-  if (r > R) return 'air'
-  if (r > OCEAN && !landAt([p[0] / r, p[1] / r, p[2] / r])) return 'water'
-  if (r > CRUST) return 'quartz'
-  if (r > CORE_OUTER) return 'forsterite'
-  if (r > CORE_INNER) return 'melt'
-  return 'iron'
+  if (r > R + 9 * KM) return 'air' // above the highest ground
+  if (r < CRUST) return r > CORE_OUTER ? 'forsterite' : r > CORE_INNER ? 'melt' : 'iron'
+  const ground = R + (elevationAt([p[0] / r, p[1] / r, p[2] / r]) / SIDE)
+  if (r > ground) return r > R ? 'air' : 'water' // the sea fills from the seabed up to sea level
+  return 'quartz'
 }
 
-// the person: on the first continent, nudged so the whole figure sits well inside one 12 m region
+// the person: at 45° N on the Greenwich meridian (which is France), nudged along so the whole figure sits well
+// inside one 12 m region
 const UP: Vec3 = [0.707, 0.707, 0]
 export const PERSON = (() => {
   const key: number[] = []
   for (let lon = 0; lon < 1e-3; lon += 1e-7) {
     const up: Vec3 = [Math.cos(Math.PI / 4) * Math.cos(lon), Math.sin(Math.PI / 4), Math.cos(Math.PI / 4) * Math.sin(lon)]
-    const c = up.map(u => u * (R + 0.87 / SIDE)) as Vec3 // hips 0.87 m above the ground
+    const c = up.map(u => u * (R + (elevationAt(up) + 0.87) / SIDE)) as Vec3 // hips 0.87 m above the ground
     key.length = 0
     let o: Vec3 = [0, 0, 0], s = 1
     for (let d = 0; d < PLACE_DEPTH; d++) {
@@ -68,24 +92,28 @@ const FACTS: Record<Material, [string, string]> = {
   iron: ['Inner core', 'A ball of solid iron 2,400 km across, as hot as the surface of the Sun and kept solid by the pressure of everything above it.'],
 }
 
+// NASA's Blue Marble on a sphere with the real relief (bump-shaded, and raised at true scale), the countries'
+// outlines, and a thin blue atmosphere
+const xyz = (lat: number, lon: number, r: number): Vec3 => [r * Math.cos(lat) * Math.cos(lon), r * Math.sin(lat), -r * Math.cos(lat) * Math.sin(lon)]
 function Globe() {
-  const geometry = useMemo(() => {
-    const g = new SphereGeometry(R, 96, 64)
-    const pos = g.getAttribute('position'), colors = new Float32Array(pos.count * 3)
-    const land = new Color('#6b7a3a'), sea = new Color('#1e5aa8'), ice = new Color('#e8f0f5')
-    for (let i = 0; i < pos.count; i++) {
-      const d: Vec3 = [pos.getX(i) / R, pos.getY(i) / R, pos.getZ(i) / R]
-      const c = Math.abs(d[1]) > 0.94 ? ice : landAt(d) ? land : sea
-      colors.set([c.r, c.g, c.b], i * 3)
+  const [map, relief] = useLoader(TextureLoader, [DATA + 'blue-marble.jpg', DATA + 'elevation.png'])
+  map.colorSpace = SRGBColorSpace
+  const borders = useMemo(() => {
+    const pts: number[] = []
+    for (const c of COUNTRIES) for (const r of c.r) for (let i = 0; i + 3 < r.length; i += 2) {
+      pts.push(...xyz((r[i + 1] * Math.PI) / 180, (r[i] * Math.PI) / 180, R + 2 * KM), ...xyz((r[i + 3] * Math.PI) / 180, (r[i + 2] * Math.PI) / 180, R + 2 * KM))
     }
-    g.setAttribute('color', new BufferAttribute(colors, 3))
-    return g
+    return new BufferGeometry().setAttribute('position', new Float32BufferAttribute(pts, 3))
   }, [])
   return (
     <group>
-      <mesh geometry={geometry}>
-        <meshStandardMaterial vertexColors roughness={0.9} />
+      <mesh>
+        <sphereGeometry args={[R, 256, 128]} />
+        <meshStandardMaterial map={map} bumpMap={relief} bumpScale={0.004} displacementMap={relief} displacementScale={6400 / SIDE} roughness={0.9} />
       </mesh>
+      <lineSegments geometry={borders}>
+        <lineBasicMaterial color="#ffffff" transparent opacity={0.3} />
+      </lineSegments>
       <mesh>
         <sphereGeometry args={[R + 60 * KM, 64, 48]} />
         <meshStandardMaterial color="#7ab8ff" transparent opacity={0.18} depthWrite={false} />
@@ -94,12 +122,13 @@ function Globe() {
   )
 }
 
+const infos = new WeakMap<Node, { title: string; fact?: string }>()
 const earth: Volume = {
   leafDepth: () => LEAF_DEPTH,
   placeDepth: () => PLACE_DEPTH,
   open: r => (r.depth === PLACE_DEPTH ? 0.2 : r.depth >= LEAF_DEPTH ? 0.15 : 0.1),
-  Near: Globe,
-  nearMax: SIDE / 300e3, // the globe's facets are 100 km wide: closer than that the rock itself is the ground
+  Near: () => <Suspense fallback={null}><Globe /></Suspense>,
+  nearMax: SIDE / 300e3, // the globe's pixels are 20 km wide: closer than that the rock itself is the ground
 
   placements: r => {
     const c = PERSON.centre
@@ -125,15 +154,32 @@ const earth: Volume = {
   far: r => {
     if (r.depth === 0) return { shape: 'sphere', color: '#4a7fc0', scale: 2 * R, minPx: 2 } // seen from space
     if (r.depth < 10) return null // coarser than 13 km the globe itself is the picture
-    const color = HAZE[materialAt(r.c)]
-    return color ? { shape: 'haze', color } : null
+    let m = materialAt(r.c)
+    if (m === 'air') { // a block whose middle is in the air but whose floor is ground or sea is drawn as that floor
+      const d = len(r.c), k = 1 - r.s / (2 * d)
+      m = materialAt([r.c[0] * k, r.c[1] * k, r.c[2] * k])
+    }
+    const color = HAZE[m]
+    return color ? { shape: 'cube', color } : null // a solid block of rock or sea: the ground follows the real relief
   },
 
-  info: r => {
-    if (r.depth < 8) return { title: 'Earth', fact: '12,742 km across. A hot iron core, a mantle of slowly creeping rock, a thin crust, oceans 4 km deep and 100 km of air, with one person standing on a continent.' }
-    if (Math.abs(len(r.c) - R) < r.s * 0.87) return { title: 'Surface', fact: 'Where rock meets air: the ground.' } // straddles the surface
-    const [title, fact] = FACTS[materialAt(r.c)]
-    return { title, fact }
+  info: (r, node) => {
+    if (r.depth < 8) return { title: 'Earth', fact: '12,742 km across. A hot iron core, a mantle of slowly creeping rock, a thin crust, oceans 4 km deep and 100 km of air, with one person standing in France.' }
+    let out = infos.get(node)
+    if (out) return out
+    const d = len(r.c), dir: Vec3 = [r.c[0] / d, r.c[1] / d, r.c[2] / d], h = elevationAt(dir)
+    if (Math.abs(d - (R + Math.max(0, h) / SIDE)) < r.s * 0.87) { // straddles the surface
+      const country = h >= 0 ? countryAt(dir) : null, [lat, lon] = latLon(dir)
+      const where = `${Math.abs(lat).toFixed(1)}° ${lat < 0 ? 'S' : 'N'}, ${Math.abs(lon).toFixed(1)}° ${lon < 0 ? 'W' : 'E'}`
+      out = h >= 0
+        ? { title: country ?? 'Land', fact: `The ground, ${Math.round(h).toLocaleString()} m above sea level, at ${where}${country ? '' : ': no country claims it'}.` }
+        : { title: 'Sea surface', fact: `Open water at ${where}; the sea floor is ${Math.round(-h).toLocaleString()} m down.` }
+    } else {
+      const [title, fact] = FACTS[materialAt(r.c)]
+      out = { title, fact }
+    }
+    infos.set(node, out)
+    return out
   },
 }
 const regionCentre = (n: { props: Record<string, number | string> }): Vec3 => [n.props.x as number, n.props.y as number, n.props.z as number]

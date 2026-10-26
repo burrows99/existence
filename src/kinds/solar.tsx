@@ -39,7 +39,10 @@ export const EARTH_KEY = 's.11' // the Earth is the fourth placement after the e
 
 function Orbits() {
   const lines = useMemo(() => ORBITS.map(([b, years], i) => {
-    const pts = Array.from({ length: 181 }, (_, k) => new Vector3(...helio(b, new Date(EPOCH.getTime() + (k / 180) * years * 365.25 * 864e5))))
+    // one orbit from today, closed back onto today's position: a year of perturbations would otherwise leave the
+    // two ends thousands of km apart, which is a visible gap once you are down at the planet
+    const pts = Array.from({ length: 180 }, (_, k) => new Vector3(...helio(b, new Date(EPOCH.getTime() + (k / 180) * years * 365.25 * 864e5))))
+    pts.push(pts[0].clone())
     return new Line(new BufferGeometry().setFromPoints(pts), new LineBasicMaterial({ color: i === 2 ? '#4a7fc0' : '#ffffff', transparent: true, opacity: i === 2 ? 0.7 : 0.3 }))
   }), [])
   return <group>{lines.map((l, i) => <primitive key={i} object={l} />)}</group>

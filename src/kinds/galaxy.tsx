@@ -11,6 +11,14 @@ export const LY = 9.461e15
 const SUN_R = 6.96e8
 const LEAF_DEPTH = 17 // ~1 light-year leaves
 
+// the real stars around the Sun, from the HYG catalogue (scripts/stars.mjs): every named star and everything within
+// 25 light-years: [name, x, y, z (light-years from the Sun), radius (suns), temperature (K), luminosity (suns), distance (ly), spectral type]
+type Star = [string, number, number, number, number, number, number, number, string]
+const STARS: Star[] = await fetch(`${import.meta.env.BASE_URL}data/stars.json`).then(r => r.json())
+const KNOWN = 25 * LY // this close to the Sun the catalogue is complete, so no procedural stars stand in
+const FARTHEST = Math.max(...STARS.map(s => s[7])) * LY
+const suns = (l: number) => (l >= 10 ? l.toFixed(0) : l >= 1 ? l.toFixed(1) : l.toPrecision(2))
+
 // shape parameters live in the root's props: rd (disc scale length), hz (scale height), n (stars), fb (bulge fraction), all in metres
 type Shape = { rd: number; hz: number; rb: number; n0: number; nb: number; fb: number; metres: number; mw: boolean }
 const shapes = new WeakMap<Node, Shape>()
@@ -111,6 +119,15 @@ const galaxy: Volume = {
     if (S.mw && Math.max(...[0, 1, 2].map(i => Math.abs(SUN_POS[i] - r.c[i]))) < r.s / 2) {
       out.push({ kind: 'solar', pos: [0, 1, 2].map(i => (SUN_POS[i] - r.c[i]) / r.s) as Vec3, size: 1.496e13 / (r.s * S.metres), props: { ...rootProps } })
     }
+    if (S.mw) { // the real stars that fall in this region (metres from the Sun)
+      const side = r.s * S.metres, d = [0, 1, 2].map(i => (r.c[i] - SUN_POS[i]) * S.metres), fromSun = Math.hypot(d[0], d[1], d[2])
+      if (fromSun - side * 0.87 < FARTHEST) for (const s of STARS) {
+        const p = [s[1] * LY - d[0], s[2] * LY - d[1], s[3] * LY - d[2]]
+        if (Math.max(Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2])) >= side / 2) continue
+        out.push({ kind: 'star', pos: [p[0] / side, p[1] / side, p[2] / side], size: (2.2 * s[4] * SUN_R) / side, props: { ...rootProps, r: s[4] * SUN_R, t: s[5], name: s[0] || `${s[8]} star`, fact: `${s[7]} light-years from the Sun, ${suns(s[6])} times its light, spectral type ${s[8]}${s[0] ? '' : ' (no name, just a catalogue number)'}.` } })
+      }
+      if (fromSun < KNOWN) return out
+    }
     const mean = density(r.c, S) * r.s ** 3
     let n = Math.floor(mean) + (rng() < mean - Math.floor(mean) ? 1 : 0)
     while (n-- > 0) {
@@ -130,22 +147,28 @@ const galaxy: Volume = {
         : { shape: 'point' as const, color: starColor(c.props.t as number), pos: c.pos }))
       return out.length ? out : null
     }
+    if (r.depth === 0) return { shape: 'haze', color: S.fb > 0.5 ? '#ffd9a6' : '#cbd8ff', scale: 8 * S.rd, minPx: 2 } // a closed galaxy, seen from outside: its glow
     if (r.depth < 5) return null // the star cloud shows the whole galaxy; regions this big would only double it
     const rng = mulberry32(hash(node.seed, 0x57a))
     const samples = [-0.5, 0, 0.5].flatMap(x => [-0.5, 0, 0.5].flatMap(y => [-0.5, 0, 0.5].map(z => density([r.c[0] + x * r.s, r.c[1] + y * r.s, r.c[2] + z * r.s], S))))
     const dmax = Math.max(...samples), mean = (samples.reduce((a, b) => a + b, 0) / 27) * r.s ** 3
     const n = Math.min(48, Math.floor(mean) + (rng() < mean - Math.floor(mean) ? 1 : 0))
-    if (n < 1) return null
     const alpha = Math.min(1, Math.max(0.12, Math.log10(mean / 48) / 6 + 0.12)) // 48 points stand for up to 10⁸ stars: brighter for more
     const out: Far[] = []
-    for (let i = 0, tries = 0; i < n && tries < 800; tries++) {
+    // near the Sun the real stars are drawn instead of samples (the catalogue is complete there), and among them further out
+    const side = r.s * S.metres, d = S.mw ? [0, 1, 2].map(i => (r.c[i] - SUN_POS[i]) * S.metres) : [Infinity, 0, 0], fromSun = Math.hypot(d[0], d[1], d[2])
+    if (fromSun - side * 0.87 > KNOWN) for (let i = 0, tries = 0; i < n && tries < 800; tries++) {
       const pos = [0, 1, 2].map(() => rng() - 0.5) as Vec3
       if (rng() * dmax > density([r.c[0] + pos[0] * r.s, r.c[1] + pos[1] * r.s, r.c[2] + pos[2] * r.s], S)) continue
       out.push({ shape: 'point', color: starColor(starOf(imfMass(rng)).t), pos, alpha })
       i++
     }
+    if (fromSun - side * 0.87 < FARTHEST) for (const s of STARS) {
+      const p = [s[1] * LY - d[0], s[2] * LY - d[1], s[3] * LY - d[2]]
+      if (Math.max(Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2])) < side / 2) out.push({ shape: 'point', color: starColor(s[5]), pos: [p[0] / side, p[1] / side, p[2] / side] })
+    }
     if (S.mw && Math.max(...[0, 1, 2].map(i => Math.abs(SUN_POS[i] - r.c[i]))) < r.s / 2) out.push({ shape: 'sphere', color: '#fff3dc', glow: true, minPx: 3, scale: 1e-9, pos: [0, 1, 2].map(i => (SUN_POS[i] - r.c[i]) / r.s) as Vec3 })
-    return out
+    return out.length ? out : null
   },
 
   info: (r, node) => {
