@@ -1,32 +1,38 @@
-// Real molecules from experimental structures (NMR entries and PubChem 3D conformers, so hydrogens are present),
-// prepared by scripts/molecules.mjs. A molecule is nothing but its atoms.
+// Real molecules from experimental structures (NMR entries, PubChem 3D conformers and PDB ideal ligand geometries,
+// all with hydrogens), prepared by scripts/molecules.mjs. A molecule is nothing but its atoms.
+import { Quaternion } from 'three'
 import { randomRotation, type Kind, type Vec3 } from '../engine/tree'
 import { element } from './orbitals.ts'
 
-type Molecule = { id: string; name: string; fact: string; color: string; diameter: number; atoms: [number, number, number, number][] }
+type Molecule = {
+  id: string; name: string; fact: string; color: string; diameter: number // Å
+  atoms: [number, number, number, number][] // Z, x, y, z in Å about the centroid
+  head?: Vec3; tail?: Vec3 // lipids: oriented head-up (+Y); where the head and tail end sit
+}
 
-export const IDS = ['1MYF', '2HIU', '1NAJ', '5957', '5793']
+export const IDS = ['1MYF', '2HIU', '1NAJ', '5957', '5793', 'POV', 'CLR', '1D3Z', 'TGL']
+export const M = { MYOGLOBIN: 0, INSULIN: 1, DNA: 2, ATP: 3, GLUCOSE: 4, POPC: 5, CHOLESTEROL: 6, UBIQUITIN: 7, FAT: 8 }
 export const LIB: Molecule[] = await Promise.all(
   IDS.map(id => fetch(`${import.meta.env.BASE_URL}data/molecules/${id}.json`).then(r => r.json())),
 )
 
-// diameter in metres, for placement before the node exists
-export const diameterOf = (m: number) => LIB[m].diameter * 1e-10
+export const diameterOf = (m: number) => LIB[m].diameter * 1e-10 // metres
 
 const molecule: Kind = {
-  open: 0.01, // never a blob: always its atoms
+  open: 0.3, // atoms once it spans a third of the view; a coloured blob before that (the budget is the atoms')
   jitter: 10e-12,
   far: n => ({ shape: 'sphere', color: LIB[n.props.m as number].color }),
   children: (node, rng) => {
     const { atoms, diameter } = LIB[node.props.m as number]
-    const rot = randomRotation(rng)
+    // placed with a given orientation (membranes), else tumbling at random
+    const q = node.props.qw === undefined
+      ? randomRotation(rng)
+      : new Quaternion(node.props.qx as number, node.props.qy as number, node.props.qz as number, node.props.qw as number)
     return atoms.map(([z, x, y, zz]) => {
-      // Å → fraction of the molecule's diameter, in a random orientation
-      const v = { x: x / diameter, y: y / diameter, z: zz / diameter }
-      const q = rot
-      // quaternion rotation without allocating a Vector3 per atom
-      const ix = q.w * v.x + q.y * v.z - q.z * v.y, iy = q.w * v.y + q.z * v.x - q.x * v.z
-      const iz = q.w * v.z + q.x * v.y - q.y * v.x, iw = -q.x * v.x - q.y * v.y - q.z * v.z
+      // Å → fraction of the molecule's diameter, rotated (expanded quaternion maths: no allocation per atom)
+      const vx = x / diameter, vy = y / diameter, vz = zz / diameter
+      const ix = q.w * vx + q.y * vz - q.z * vy, iy = q.w * vy + q.z * vx - q.x * vz
+      const iz = q.w * vz + q.x * vy - q.y * vx, iw = -q.x * vx - q.y * vy - q.z * vz
       const pos: Vec3 = [
         ix * q.w + iw * -q.x + iy * -q.z - iz * -q.y,
         iy * q.w + iw * -q.y + iz * -q.x - ix * -q.z,

@@ -18,17 +18,17 @@ type Cam = {
 
 export const MIN_ZOOM = -19 // one decade below the smallest scale anything has been found at
 
-const ROOT_SIDE = 64 * 6 * 0.3104e-9 // liquid water: 64 leaf cubes of 6×6×6 molecules at 33.4 molecules/nm³
-export const root: Node = { key: 'w', kind: 'water', seed: 1, props: { depth: 0 }, pos: [0, 0, 0], size: 1, metres: ROOT_SIDE }
+// the observable universe (see kinds/universe.tsx)
+export const root: Node = { key: 'u', kind: 'universe', seed: 1, props: { depth: 0, x: 0, y: 0, z: 0, s: 1 }, pos: [0, 0, 0], size: 1, metres: 9.3e26 }
 export const maxZoom = () => Math.log10(root.metres * 3)
 
 // #at=<node key>&f=<focus>&z=<zoom> is a complete location; #z=<zoom> alone keeps the default spot
 function parseHash(): NonNullable<Cam['pending']> {
   const h = new URLSearchParams(location.hash.slice(1))
   return {
-    key: h.get('at') ?? 'w.7.0.0.8', // the biomolecule in one of the 14.9 nm regions
+    key: h.get('at') ?? root.key,
     focus: (h.get('f') ?? '0,0,0').split(',').map(Number) as Vec3,
-    zoom: MathUtils.clamp(Number(h.get('z') ?? -8.4), MIN_ZOOM, maxZoom()),
+    zoom: MathUtils.clamp(Number(h.get('z') ?? 26.95), MIN_ZOOM, maxZoom()),
   }
 }
 
@@ -102,15 +102,19 @@ export function stepCamera(dt: number) {
     }
     // descend once the child spans most of the view and holds the focus: along the path to the goal if there is
     // one, else into the nearest centre (bounding cubes overlap, e.g. bonded atoms)
-    let best: Node | undefined, bestD = 0.5
+    let best: Node | undefined, bestD = 0.5 // a focus exactly on a seam belongs to the first child that reaches it
     if (goal && goal !== node.key) {
       const c = childrenOf(node)[Number(goal.slice(node.key.length + 1).split('.')[0])]
-      if (c && c.size > 0.6 * w && contains(c, focus) < 0.5) best = c
+      if (c && c.size > 0.6 * w && contains(c, focus) <= 0.5) best = c
     } else {
+      // a thing (a cell, a molecule) beats a mere region of space that also holds the focus
+      let bestThing = false
       for (const c of childrenOf(node)) {
         if (c.size < 0.6 * w) continue
         const d = contains(c, focus)
-        if (d < bestD) { best = c; bestD = d }
+        if (d > 0.5) continue
+        const thing = !kindOf(c.kind)?.space
+        if ((thing && !bestThing) || (thing === bestThing && (d < bestD || !best))) { best = c; bestD = d; bestThing = thing }
       }
     }
     if (!best) break

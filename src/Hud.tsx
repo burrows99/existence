@@ -1,6 +1,26 @@
 import { MIN_ZOOM, maxZoom, useCam } from './engine/camera'
 import { useSyncExternalStore } from 'react'
 import { ancestry, kindOf, kindsLoaded, subscribeKinds } from './engine/tree'
+import { PERSON } from './kinds/earth'
+import { EARTH_KEY as EARTH_IN_SOLAR } from './kinds/solar'
+import { sunPath } from './kinds/galaxy'
+import { mwPath } from './kinds/universe'
+
+const MW_KEY = `u.${mwPath()}`
+const SOLAR_KEY = `${MW_KEY}.${sunPath()}`
+const EARTH_KEY = `${SOLAR_KEY}.${EARTH_IN_SOLAR.slice(2)}`
+const PERSON_KEY = `${EARTH_KEY}.${PERSON.path}`
+const LANDMARKS: [string, string][] = [
+  ['Universe', '#at=u&z=26.95'],
+  ['Milky Way', `#at=${MW_KEY}&z=21.2`],
+  ['Solar system', `#at=${SOLAR_KEY}&z=13.1`],
+  ['The Sun', `#at=${SOLAR_KEY}.8&z=9.3`],
+  ['Earth', `#at=${EARTH_KEY}&z=7.25`],
+  ['A person', `#at=${PERSON_KEY}&z=0.35`],
+  ['A muscle cell', `#at=${PERSON_KEY}&f=0.06,-0.1,0.02&z=-4.8`],
+  ['Molecules', `#at=${PERSON_KEY}&f=0.06,-0.1,0.02&z=-8.4`],
+  ['Atoms', `#at=${PERSON_KEY}&f=0.06,-0.1,0.02&z=-9.6`],
+]
 
 const UNITS: [number, string][] = [
   [9.461e24, 'billion light-years'],
@@ -60,6 +80,9 @@ export function Hud() {
         )}
         <div className="hint">Scroll to zoom into whatever is under the cursor · drag to look around · click the ruler to zoom back out</div>
       </div>
+      <nav className="landmarks" aria-label="Go to">
+        {LANDMARKS.map(([label, href]) => <a key={label} href={href}>{label}</a>)}
+      </nav>
 
       <nav className="ruler" aria-label="Where you are">
         <div className="marker" style={{ top: `${pct(zoom)}%` }} />
