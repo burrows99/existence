@@ -1,9 +1,9 @@
 // The observable universe: galaxies along a cosmic web, with the Milky Way at the centre (that is what "observable"
 // means), Andromeda 2.5 million light-years away, and the cosmic microwave background at the edge.
 import { DoubleSide } from 'three'
-import { childrenOf, hash, inCell, mulberry32, type ChildSpec, type Far, type Vec3 } from '../engine/tree'
+import { childrenOf, hash, inCell, mulberry32, type ChildSpec, type Node, type Vec3 } from '../engine/tree'
 import { PERF } from '../engine/perf'
-import { rootProps, volume, type Volume } from './volume'
+import { regionOf, rootProps, volume, type Region, type Volume } from './volume'
 import { LY, MILKY_WAY, galaxyCube } from './galaxy'
 
 export const SIDE = 9.3e26 // metres; the observable universe is a sphere 8.8e26 m across
@@ -35,7 +35,7 @@ export function at(ra: number, dec: number, ly: number): Vec3 {
 }
 type Place = {
   name: string; fact: string; ra: number; dec: number; ly: number
-  galaxy?: { rd: number; hz: number; n: number; fb: number } // placed as a galaxy of this shape
+  galaxy?: { rd: number; hz: number; n: number; fb: number; bh?: number } // placed as a galaxy of this shape (bh: its central black hole, solar masses)
   boost?: [number, number] // a cluster: [σ in light-years, × the galaxies at its centre]
   hole?: number // a void: radius in light-years, emptied
   region?: number // just a name for everything within this radius
@@ -64,6 +64,42 @@ export const CATALOGUE: Place[] = [
   { name: 'Shapley Supercluster', ra: 13.467, dec: -31.5, ly: 6.5e8, boost: [2.5e7, 25], fact: 'The biggest concentration of galaxies in the nearby universe, 650 million light-years away, with the mass of ten thousand Milky Ways.' },
   { name: 'Boötes Void', ra: 14.833, dec: 46, ly: 7.0e8, hole: 1.65e8, fact: 'A hole 330 million light-years across with only sixty-odd galaxies in it, where two thousand would be expected. If the Milky Way were at its centre, we would not have known there were other galaxies until the 1960s.' },
   { name: 'Laniakea Supercluster', ra: 16.25, dec: -60.9, ly: 2.2e8, region: 2.6e8, fact: 'Our supercluster, 520 million light-years across and a hundred thousand galaxies, defined in 2014 as everything that flows toward the Great Attractor; the Milky Way sits near its edge.' },
+  // the Milky Way's other satellites and the Local Group's neighbours
+  { name: 'Fornax Dwarf', ra: 2.666, dec: -34.45, ly: 4.6e5, galaxy: { rd: 1.5e3 * LY, hz: 1e3 * LY, n: 4e7, fb: 0.9 }, fact: 'A dwarf spheroidal satellite of the Milky Way, 460,000 light-years away: tens of millions of old stars, six globular clusters of its own, and hardly any gas.' },
+  { name: 'Sculptor Dwarf', ra: 1.003, dec: -33.71, ly: 2.9e5, galaxy: { rd: 1e3 * LY, hz: 1e3 * LY, n: 1e7, fb: 0.9 }, fact: 'The first dwarf spheroidal galaxy found (1938): a few million old stars 290,000 light-years away, held together mostly by dark matter.' },
+  { name: 'Leo I', ra: 10.141, dec: 12.31, ly: 8.2e5, galaxy: { rd: 1e3 * LY, hz: 1e3 * LY, n: 2e7, fb: 0.9 }, fact: 'One of the most distant of the Milky Way’s satellites, 820,000 light-years out, a dwarf spheroidal that was still forming stars a billion years ago.' },
+  { name: 'Draco Dwarf', ra: 17.337, dec: 57.92, ly: 2.6e5, galaxy: { rd: 700 * LY, hz: 700 * LY, n: 3e6, fb: 0.9 }, fact: 'A faint dwarf spheroidal 260,000 light-years away, among the most dark-matter-dominated galaxies known: its stars move as if there were thirty times more mass than can be seen.' },
+  { name: 'Ursa Minor Dwarf', ra: 15.153, dec: 67.22, ly: 2.25e5, galaxy: { rd: 700 * LY, hz: 700 * LY, n: 3e6, fb: 0.9 }, fact: 'A dwarf spheroidal 225,000 light-years away whose stars are all ancient: it stopped forming them twelve billion years ago.' },
+  { name: 'Messier 83', ra: 13.617, dec: -29.87, ly: 1.5e7, galaxy: { rd: 6e3 * LY, hz: 600 * LY, n: 4e10, fb: 0.2 }, fact: 'The Southern Pinwheel: a barred spiral seen face-on, 15 million light-years away, with six supernovae seen in a century.' },
+  { name: 'Leo Triplet', ra: 11.33, dec: 13.2, ly: 3.5e7, region: 1.2e6, fact: 'Three spirals 35 million light-years away, close enough to pull each other out of shape: M65, M66 and the edge-on NGC 3628.' },
+  { name: 'Messier 65', ra: 11.316, dec: 13.09, ly: 3.5e7, galaxy: { rd: 6e3 * LY, hz: 600 * LY, n: 1e11, fb: 0.3 }, fact: 'A spiral of the Leo Triplet, tilted nearly edge-on, with little gas left to make new stars.' },
+  { name: 'Messier 66', ra: 11.337, dec: 12.99, ly: 3.1e7, galaxy: { rd: 7e3 * LY, hz: 700 * LY, n: 1e11, fb: 0.3 }, fact: 'The brightest of the Leo Triplet, its arms and dust lanes warped by its neighbours.' },
+  { name: 'NGC 3628', ra: 11.337, dec: 13.59, ly: 3.5e7, galaxy: { rd: 7e3 * LY, hz: 800 * LY, n: 1e11, fb: 0.2 }, fact: 'The Hamburger Galaxy: a spiral seen exactly edge-on, split by a dark lane of dust, trailing a tail of stars 300,000 light-years long.' },
+  { name: 'Antennae Galaxies', ra: 12.031, dec: -18.87, ly: 4.5e7, galaxy: { rd: 8e3 * LY, hz: 1.5e3 * LY, n: 3e11, fb: 0.3 }, fact: 'Two spirals, NGC 4038 and 4039, in the middle of colliding: 45 million light-years away, their stars thrown out in two long tails. Drawn here as one galaxy.' },
+  { name: 'Hoag’s Object', ra: 15.287, dec: 21.59, ly: 6.0e8, galaxy: { rd: 15e3 * LY, hz: 1.5e3 * LY, n: 1e11, fb: 0.5 }, fact: 'A ring galaxy 600 million light-years away: a core of old yellow stars inside a detached ring of young blue ones, with almost nothing between. Nobody is sure how it formed.' },
+  { name: 'Cygnus A', ra: 19.991, dec: 40.73, ly: 7.6e8, galaxy: { rd: 15e3 * LY, hz: 10e3 * LY, n: 3e11, fb: 0.9 }, fact: 'The brightest radio galaxy in the sky, 760 million light-years away: an elliptical whose central black hole fires two jets that end in lobes 500,000 light-years apart.' },
+  { name: '3C 273', ra: 12.485, dec: 2.05, ly: 2.44e9, galaxy: { rd: 15e3 * LY, hz: 10e3 * LY, n: 5e11, fb: 0.9, bh: 8.9e8 }, fact: 'The first quasar identified (1963) and the brightest in our sky: a black hole of 900 million suns, 2.4 billion light-years away, feeding so hard that its disc outshines four trillion Suns.' },
+  { name: 'TON 618', ra: 12.473, dec: 31.47, ly: 1.82e10, galaxy: { rd: 20e3 * LY, hz: 15e3 * LY, n: 1e12, fb: 0.9, bh: 6.6e10 }, fact: 'A quasar whose light left 10.4 billion years ago (the galaxy is now 18 billion light-years away): around a black hole of some 40 to 66 billion suns, one of the most massive known.' },
+  { name: 'IC 1101', ra: 15.182, dec: 5.74, ly: 1.04e9, galaxy: { rd: 1.5e5 * LY, hz: 1e5 * LY, n: 1e14, fb: 0.95 }, fact: 'The largest galaxy known: a giant elliptical at the centre of the cluster Abell 2029, a billion light-years away, with a diffuse halo of stars four million light-years across and a hundred trillion stars.' },
+  { name: 'GN-z11', ra: 12.607, dec: 62.24, ly: 3.2e10, galaxy: { rd: 500 * LY, hz: 300 * LY, n: 1e9, fb: 0.5 }, fact: 'One of the most distant galaxies known: its light set out 13.4 billion years ago, when the universe was 400 million years old. Expansion has since carried it 32 billion light-years away.' },
+  // groups, clusters, superclusters, walls and voids
+  { name: 'M81 Group', ra: 9.93, dec: 69.1, ly: 1.18e7, region: 3e6, fact: 'One of the nearest groups to our own: M81, M82 and some thirty dwarfs, 12 million light-years away.' },
+  { name: 'Sculptor Group', ra: 0.8, dec: -27, ly: 1.2e7, region: 4e6, fact: 'A loose string of galaxies 12 million light-years away along the southern sky, the Sculptor Galaxy the brightest of them.' },
+  { name: 'Centaurus A / M83 Group', ra: 13.5, dec: -36, ly: 1.3e7, region: 4e6, fact: 'Two clumps of galaxies 13 million light-years away, around Centaurus A and M83, the nearest group of its size beyond our own.' },
+  { name: 'Virgo Supercluster', ra: 12.514, dec: 12.39, ly: 5.4e7, region: 5.5e7, fact: 'The Local Supercluster: a flattened cloud 110 million light-years across of a hundred groups of galaxies, ours included, around the Virgo Cluster. Since 2014 it counts as one lobe of Laniakea.' },
+  { name: 'Centaurus Cluster', ra: 12.814, dec: -41.31, ly: 1.7e8, boost: [5e6, 15], fact: 'A cluster of a few hundred galaxies 170 million light-years away, the main knot of the Hydra–Centaurus Supercluster.' },
+  { name: 'Hydra Cluster', ra: 10.613, dec: -27.53, ly: 1.6e8, boost: [5e6, 12], fact: 'A compact cluster 160 million light-years away, the other anchor of the Hydra–Centaurus Supercluster.' },
+  { name: 'Hydra–Centaurus Supercluster', ra: 12, dec: -35, ly: 1.7e8, region: 8e7, fact: 'The supercluster next door, 170 million light-years away, which Laniakea’s definition swallowed along with ours.' },
+  { name: 'Pavo–Indus Supercluster', ra: 20.5, dec: -50, ly: 2.3e8, region: 7e7, fact: 'A supercluster 230 million light-years away in the far southern sky, also part of Laniakea.' },
+  { name: 'Abell 2029', ra: 15.182, dec: 5.74, ly: 1.04e9, boost: [8e6, 25], fact: 'A rich cluster a billion light-years away, built around the giant galaxy IC 1101.' },
+  { name: 'Perseus–Pisces Supercluster', ra: 1.5, dec: 30, ly: 2.5e8, region: 1.2e8, fact: 'A wall of clusters 300 million light-years long on the opposite side of the sky from Laniakea, the Perseus Cluster at one end of it.' },
+  { name: 'CfA2 Great Wall', ra: 13, dec: 29, ly: 2.5e8, region: 2.5e8, fact: 'The Great Wall of 1989, the first giant structure ever mapped: a sheet of galaxies 500 million light-years long and only 15 million thick, with the Coma Cluster at its heart.' },
+  { name: 'Horologium Supercluster', ra: 3.3, dec: -50, ly: 7e8, boost: [4e7, 8], region: 2.5e8, fact: 'A supercluster 700 million light-years away, 550 million light-years long, with thousands of galaxy clusters in it.' },
+  { name: 'Pisces–Cetus Supercluster Complex', ra: 1, dec: -5, ly: 9e8, region: 5e8, fact: 'A complex of superclusters a billion light-years long, of which Laniakea and Perseus–Pisces are only parts; drawn here as a name, its shape is not modelled.' },
+  { name: 'Sloan Great Wall', ra: 11.5, dec: 0, ly: 1.0e9, region: 6e8, fact: 'A wall of galaxies 1.37 billion light-years long, a billion light-years away, found in the Sloan survey in 2003; drawn here as a name, its shape is not modelled.' },
+  { name: 'Hercules–Corona Borealis Great Wall', ra: 17.3, dec: 27.5, ly: 1.7e10, region: 5e9, fact: 'A clump of gamma-ray bursts found in 2013 that may trace a structure ten billion light-years long, the largest known if it is real; whether it is remains argued.' },
+  { name: 'Local Void', ra: 18.63, dec: 18, ly: 7.5e7, hole: 7e7, fact: 'A near-empty region 150 million light-years across right beside the Local Group; the lack of mass there pushes us away at 260 km/s.' },
+  { name: 'Eridanus Supervoid', ra: 3.25, dec: -19.6, ly: 3e9, hole: 5e8, fact: 'An under-dense region a billion light-years across, found behind the cold spot in the cosmic microwave background and possibly its cause.' },
 ]
 const STRUCTURES = CATALOGUE.filter(c => c.boost || c.hole).map(c => ({ pos: at(c.ra, c.dec, c.ly), sigma: ((c.boost?.[0] ?? 0) * LY) / SIDE, factor: c.boost?.[1] ?? 0, hole: ((c.hole ?? 0) * LY) / SIDE }))
 const NAMED = CATALOGUE.filter(c => !c.galaxy).map(c => ({ ...c, pos: at(c.ra, c.dec, c.ly), radius: ((c.region ?? c.hole ?? 2 * c.boost![0]) * LY) / SIDE })).sort((a, b) => a.radius - b.radius)
@@ -96,6 +132,31 @@ const KINDS = [
 ]
 const pick = (rng: () => number) => { let u = rng(); for (const k of KINDS) { if (u < k.p) return k; u -= k.p } return KINDS[0] }
 
+// A closed region is drawn as a sample of the galaxies it holds, and the sample persists: a region's sample is its
+// parent's samples that fall inside it (first, so they are the last to be thinned) plus new ones up to what its
+// density expects, and a leaf makes every sample that reached it a real galaxy. So a galaxy seen from afar is still
+// there, in the same place, when you arrive.
+type Sample = { pos: Vec3; k: number } // in root units; which of KINDS
+const samples = new WeakMap<Node, { sample: Sample[]; mean: number }>()
+function samplesOf(node: Node, r: Region): { sample: Sample[]; mean: number } {
+  let s = samples.get(node)
+  if (s) return s
+  const parent = node.parent
+  const above: Sample[] = parent && parent.kind === node.kind && (parent.props.depth as number) >= 5 ? samplesOf(parent, regionOf(parent)).sample : []
+  const sample = above.filter(p => Math.max(Math.abs(p.pos[0] - r.c[0]), Math.abs(p.pos[1] - r.c[1]), Math.abs(p.pos[2] - r.c[2])) < r.s / 2)
+  const rng = mulberry32(hash(node.seed, 0x6a1a))
+  // the density at 27 points of the region: a cell is picked by its weight and a point drawn anywhere in it
+  const lattice = [-0.5, 0, 0.5].flatMap(x => [-0.5, 0, 0.5].flatMap(y => [-0.5, 0, 0.5].map(z => density([r.c[0] + x * r.s, r.c[1] + y * r.s, r.c[2] + z * r.s]))))
+  const total = lattice.reduce((a, b) => a + b, 0), mean = (total / 27) * r.s ** 3
+  const want = Math.min(PERF.samples, Math.floor(mean) + (rng() < mean - Math.floor(mean) ? 1 : 0))
+  while (sample.length < want) {
+    const p = inCell(lattice, total, rng)
+    sample.push({ pos: [r.c[0] + p[0] * r.s, r.c[1] + p[1] * r.s, r.c[2] + p[2] * r.s], k: KINDS.indexOf(pick(rng)) })
+  }
+  samples.set(node, (s = { sample, mean }))
+  return s
+}
+
 const SPECIAL: [Vec3, Record<string, number | string>][] = [
   [MW_POS, MILKY_WAY],
   ...CATALOGUE.filter(c => c.galaxy).map((c): [Vec3, Record<string, number | string>] => [at(c.ra, c.dec, c.ly), { ...c.galaxy!, name: c.name, fact: c.fact }]),
@@ -112,19 +173,19 @@ const universe: Volume = {
     </mesh>
   ),
 
-  fill: (r, rng) => {
+  fill: (r, rng, leaf) => {
     const out: ChildSpec[] = []
     const inLeaf = (p: Vec3) => Math.max(...[0, 1, 2].map(i => Math.abs(p[i] - r.c[i]))) < r.s / 2
     for (const [p, props] of SPECIAL) if (inLeaf(p)) {
       out.push({ kind: 'galaxy', pos: [0, 1, 2].map(i => (p[i] - r.c[i]) / r.s) as Vec3, size: galaxyCube(props.rd as number) / (r.s * SIDE), props: { ...rootProps, ...props } })
     }
     if (Math.hypot(r.c[0] - MW_POS[0], r.c[1] - MW_POS[1], r.c[2] - MW_POS[2]) > R_CMB) return out // beyond what light has had time to show us
-    const mean = density(r.c) * r.s ** 3
-    let n = Math.floor(mean) + (rng() < mean - Math.floor(mean) ? 1 : 0)
-    while (n-- > 0) {
-      const k = pick(rng)
-      out.push({ kind: 'galaxy', pos: [0, 1, 2].map(() => rng() - 0.5) as Vec3, size: galaxyCube(k.rd) / (r.s * SIDE), props: { ...rootProps, rd: k.rd, hz: k.hz, n: k.n, fb: k.fb, name: k.name, fact: k.fact } })
-    }
+    // the galaxies drawn for this leaf from afar become real, exactly where they were, then the rest of the expected number
+    const { sample, mean } = samplesOf(leaf, r)
+    const add = (p: Vec3, k: (typeof KINDS)[number]) => out.push({ kind: 'galaxy', pos: p, size: galaxyCube(k.rd) / (r.s * SIDE), props: { ...rootProps, rd: k.rd, hz: k.hz, n: k.n, fb: k.fb, name: k.name, fact: k.fact } })
+    for (const s of sample) add([0, 1, 2].map(i => (s.pos[i] - r.c[i]) / r.s) as Vec3, KINDS[s.k])
+    let n = Math.floor(mean) + (rng() < mean - Math.floor(mean) ? 1 : 0) - sample.length
+    while (n-- > 0) add([0, 1, 2].map(() => rng() - 0.5) as Vec3, pick(rng))
     return out
   },
 
@@ -134,17 +195,10 @@ const universe: Volume = {
       const out = childrenOf(node).map(c => ({ shape: 'point' as const, color: c.props.mw ? '#fff3dc' : (c.props.fb as number) > 0.5 ? '#ffd9a6' : '#cbd8ff', pos: c.pos }))
       return out.length ? out : null
     }
-    const rng = mulberry32(hash(node.seed, 0x6a1a))
-    // the density at 27 points of the region: a cell is picked by its weight and a point drawn anywhere in it
-    // (27 density calls per region, however many samples; rejection sampling cost hundreds)
-    const samples = [-0.5, 0, 0.5].flatMap(x => [-0.5, 0, 0.5].flatMap(y => [-0.5, 0, 0.5].map(z => density([r.c[0] + x * r.s, r.c[1] + y * r.s, r.c[2] + z * r.s]))))
-    const total = samples.reduce((a, b) => a + b, 0), mean = (total / 27) * r.s ** 3
-    const n = Math.min(PERF.samples, Math.floor(mean) + (rng() < mean - Math.floor(mean) ? 1 : 0))
-    if (n < 1) return null
+    const { sample, mean } = samplesOf(node, r)
+    if (!sample.length) return null
     const alpha = Math.min(1, Math.max(0.2, Math.log10(mean / PERF.samples) / 4 + 0.2))
-    const out: Far[] = []
-    for (let i = 0; i < n; i++) out.push({ shape: 'point', color: pick(rng).color, pos: inCell(samples, total, rng), alpha })
-    return out
+    return sample.map(s => ({ shape: 'point' as const, color: KINDS[s.k].color, pos: [0, 1, 2].map(i => (s.pos[i] - r.c[i]) / r.s) as Vec3, alpha }))
   },
 
   info: r => {

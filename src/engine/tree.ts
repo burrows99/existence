@@ -32,6 +32,8 @@ export type Far = {
   alpha?: number // brightness of a point, for a sample that stands in for many
   glow?: boolean // pushed past 1 so Bloom catches it
   minPx?: number // point-like: never drawn smaller than this
+  flash?: boolean // an event: a brief bright burst now and then (a fusion), invisible between
+  phase?: number // its own timing, radians (default: its node's)
 }
 
 export type Kind = {

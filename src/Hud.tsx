@@ -90,7 +90,7 @@ export function Hud() {
             <p>{info.fact}</p>
           </div>
         )}
-        <div className="hint">Scroll to zoom into whatever is under the cursor · drag to look around · click the ruler to zoom back out</div>
+        <div className="hint">Click a thing to fly to it · scroll to zoom into whatever is under the cursor · drag to look around · click the ruler to zoom back out</div>
       </div>
       <nav className="landmarks" aria-label="Go to">
         {LANDMARKS.map(([label, href]) => <a key={label} href={href}>{label}</a>)}

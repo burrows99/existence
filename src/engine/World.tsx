@@ -31,7 +31,8 @@ type Chunk = {
   at: Record<Batch, number>; slot: number; used: number
 }
 type Visible = { n: Node; rx: number; ry: number; rz: number; s: number; chunk: Chunk } // r: its centre from the focus, in top units
-type Pick = { solid?: Node; solidZ: number; open?: Node; openR: number; near?: Node; nearD: number }
+// spot: the nearest drawn item of any kind, a sample included (a star in a far galaxy is a sample until its leaf opens)
+type Pick = { solid?: Node; solidZ: number; open?: Node; openR: number; near?: Node; nearD: number; spot?: Vec3; spotD: number }
 const chunks = new WeakMap<Node, Chunk>()
 const buildCost = new Map<string, number>() // ms a chunk of each kind has taken to build lately, to budget before opening one
 
@@ -80,8 +81,9 @@ function sweep(before: number, limit: number) {
   return n
 }
 
-// point: never cut away (a star behind the focus is still a star); blob: a node's stand-in, drawn only while its detail is not
-const FLAG_GLOW = 1, FLAG_POINT = 2, FLAG_BLOB = 4
+// point: never cut away (a star behind the focus is still a star); blob: a node's stand-in, drawn only while its detail
+// is not; flash: an event, a brief burst now and then and nothing between
+const FLAG_GLOW = 1, FLAG_POINT = 2, FLAG_BLOB = 4, FLAG_FLASH = 8
 
 // ---- shaders -----------------------------------------------------------------------------------------------
 
@@ -112,9 +114,16 @@ const SPHERE_VERT = CHUNK_GLSL + /* glsl */ `
   void main() {
     vec3 w; float r;
     if (!place(w, r)) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+    vec3 color = iColor;
+    if (iMisc.w >= 8.0) { // a flash: a burst every few seconds at its own phase, nothing between
+      float pulse = pow(max(0.0, sin(time * 1.3 + iMisc.z * 9.0)), 40.0);
+      if (pulse < 0.02) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+      r *= 1.0 + 6.0 * pulse;
+      color *= 1.0 + 4.0 * pulse;
+    }
     vec4 vp = modelViewMatrix * vec4(w, 1.0);
     r = max(r, 0.5 * iMisc.x * max(0.001, -vp.z) / fovScale); // never smaller than minPx pixels
-    vCorner = position.xy; vColor = iColor; vR = r; vCenter = vp.xyz; vFlags = iMisc.w;
+    vCorner = position.xy; vColor = color; vR = r; vCenter = vp.xyz; vFlags = iMisc.w;
     vp.xy += position.xy * r * 1.05;
     gl_Position = projectionMatrix * vp;
   }
@@ -192,14 +201,14 @@ function buildChunk(n: Node, kind: Kind, kids: Node[], closed: Node[], open: Nod
   // rank: a sample is drawn while rank ≤ (span / open)³; detail (rank 1) once the node spans its detail threshold
   const push = (f: Far, at: Vec3, size: number, rank: number, spanFactor: number, jit: number, phase: number, own: Node | null, blob = false) => {
     const [r, g, b] = rgb(f.color), a = f.alpha ?? 1
-    const flags = (f.glow ? FLAG_GLOW : 0) | (f.minPx || f.shape === 'point' ? FLAG_POINT : 0) | (blob ? FLAG_BLOB : 0)
+    const flags = (f.glow ? FLAG_GLOW : 0) | (f.minPx || f.shape === 'point' ? FLAG_POINT : 0) | (blob ? FLAG_BLOB : 0) | (f.flash ? FLAG_FLASH : 0)
     const b2 = batchOf(f), j = len[b2]
     let s = scratch[b2]
     if (j + STRIDE > s.length) { const t = new Float32Array(s.length * 2); t.set(s); scratch[b2] = s = t }
     s[j] = f.pos ? at[0] + f.pos[0] * size : at[0]; s[j + 1] = f.pos ? at[1] + f.pos[1] * size : at[1]; s[j + 2] = f.pos ? at[2] + f.pos[2] * size : at[2]
     s[j + 3] = size * (f.scale ?? (f.shape === 'haze' ? 0.7 : 1))
     s[j + 4] = r * a; s[j + 5] = g * a; s[j + 6] = b * a
-    s[j + 7] = f.minPx ?? 0; s[j + 8] = jit; s[j + 9] = phase; s[j + 10] = flags; s[j + 11] = rank; s[j + 12] = spanFactor; s[j + 13] = 0
+    s[j + 7] = f.minPx ?? 0; s[j + 8] = jit; s[j + 9] = f.phase ?? phase; s[j + 10] = flags; s[j + 11] = rank; s[j + 12] = spanFactor; s[j + 13] = 0
     len[b2] = j + STRIDE
     ;(owners[b2] ??= []).push(own)
   }
@@ -234,6 +243,7 @@ export function World() {
   const walked = useRef<Visible[]>([])
   const pointer = useRef({ x: 0, y: 0 }) // px from the canvas centre, y up
   const wheel = useRef({ decades: 0, retarget: false, last: 0 })
+  const tap = useRef({ x: 0, y: 0, at: 0, fly: false }) // a click (no drag) flies to whatever is under the cursor
   const lastGen = useRef<Record<string, number>>({}) // dev: ms spent generating, by kind, in the last walk
 
   const gpu = useMemo(() => {
@@ -289,11 +299,20 @@ export function World() {
       // capped so a hard flick or momentum scroll can't jump tens of decades at once
       w.decades += MathUtils.clamp(e.deltaY * (e.ctrlKey ? 0.02 : 0.003), -0.3, 0.3)
     }
+    const down = (e: PointerEvent) => { tap.current = { x: e.clientX, y: e.clientY, at: performance.now(), fly: false } }
+    const up = (e: PointerEvent) => { // a tap, not a drag (dragging is the orbit controls' job)
+      const t = tap.current
+      if (e.button === 0 && Math.hypot(e.clientX - t.x, e.clientY - t.y) < 6 && performance.now() - t.at < 500) { track(e); t.fly = true }
+    }
     el.addEventListener('pointermove', track)
     el.addEventListener('wheel', onWheel, { passive: false })
+    el.addEventListener('pointerdown', down)
+    el.addEventListener('pointerup', up)
     return () => {
       el.removeEventListener('pointermove', track)
       el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('pointerdown', down)
+      el.removeEventListener('pointerup', up)
     }
   }, [gl])
 
@@ -491,10 +510,11 @@ export function World() {
     gpu.uniforms.proj.value = camera.projectionMatrix
 
     // what is under the cursor: the nearest solid thing, else the smallest open thing, else the closest tiny thing
-    const pickAt = (cx: number, cy: number): Node | undefined => {
+    // (`node`), and failing those the nearest drawn point of anything (`spot`, a position in node units)
+    const pickAt = (cx: number, cy: number): { node?: Node; spot?: Vec3 } => {
       const right = new Vector3(1, 0, 0).applyQuaternion(camera.quaternion), up = new Vector3(0, 1, 0).applyQuaternion(camera.quaternion)
       const D = CAMERA_DISTANCE / k, pxPerUnit = size.height / w
-      const pick: Pick = { solidZ: -Infinity, openR: Infinity, nearD: PERF.snapPx }
+      const pick: Pick = { solidZ: -Infinity, openR: Infinity, nearD: PERF.snapPx, spotD: PERF.snapPx }
       for (const v of shown) {
         const z = v.rx * back.x + v.ry * back.y + v.rz * back.z
         if (z - v.s * 0.87 >= D) continue // wholly behind the camera (its centre may be, while things in it are not)
@@ -506,10 +526,8 @@ export function World() {
         }
         for (const b of BATCHES) {
           const d = v.chunk.data[b], own = v.chunk.owners[b]
-          if (!own) continue
           for (let i = 0; i < v.chunk.count[b]; i++) {
-            const c = own[i]
-            if (!c) continue
+            const c = own?.[i]
             const j = i * STRIDE
             const p: Vec3 = [v.rx + d[j] * v.s, v.ry + d[j + 1] * v.s, v.rz + d[j + 2] * v.s]
             const pz = p[0] * back.x + p[1] * back.y + p[2] * back.z
@@ -517,12 +535,14 @@ export function World() {
             const pp = (D / (D - pz)) * pxPerUnit
             const px = (p[0] * right.x + p[1] * right.y + p[2] * right.z) * pp - cx, py = (p[0] * up.x + p[1] * up.y + p[2] * up.z) * pp - cy
             const d2 = px * px + py * py, rr = Math.max((d[j + 3] * v.s * pp) / 2, d[j + 7] / 2)
+            if (d2 < pick.spotD * pick.spotD) { pick.spot = [focus[0] + p[0], focus[1] + p[1], focus[2] + p[2]]; pick.spotD = Math.sqrt(d2) }
+            if (!c) continue
             if (d2 < rr * rr && pz > pick.solidZ) { pick.solid = c; pick.solidZ = pz }
             if (d2 < pick.nearD * pick.nearD) { pick.near = c; pick.nearD = Math.sqrt(d2) }
           }
         }
       }
-      return pick.solid ?? pick.open ?? pick.near
+      return { node: pick.solid ?? pick.open ?? pick.near, spot: pick.spot }
     }
 
     // apply this frame's scrolling, aimed at what is under the cursor
@@ -531,15 +551,24 @@ export function World() {
       const cam = useCam.getState()
       let { anchor, goal } = cam
       if (wh.retarget) {
-        const target = pickAt(pointer.current.x, pointer.current.y)
+        const { node: target, spot } = pickAt(pointer.current.x, pointer.current.y)
         goal = target?.key ?? null
         const right = new Vector3(1, 0, 0).applyQuaternion(camera.quaternion), up = new Vector3(0, 1, 0).applyQuaternion(camera.quaternion)
         const per = w / size.height // node units per px
-        anchor = target ? centreIn(target, node) : [0, 1, 2].map(i => focus[i] + pointer.current.x * per * right.getComponent(i) + pointer.current.y * per * up.getComponent(i)) as Vec3
+        anchor = target ? centreIn(target, node) : spot ?? [0, 1, 2].map(i => focus[i] + pointer.current.x * per * right.getComponent(i) + pointer.current.y * per * up.getComponent(i)) as Vec3
       }
       cam.zoomAt(wh.decades, anchor, goal)
       wh.decades = 0
       wh.retarget = false
+    }
+    // a click flies to the thing under the cursor until it fills two thirds of the view, locked on; a click on a
+    // mere sample (a star drawn for a region that has not opened yet) zooms in on that spot until it is real
+    if (tap.current.fly) {
+      tap.current.fly = false
+      const { node: target, spot } = pickAt(pointer.current.x, pointer.current.y)
+      const cam = useCam.getState()
+      if (target) cam.zoomAt(Math.log10(target.metres * 1.5) - cam.target, centreIn(target, node), target.key)
+      else if (spot) cam.zoomAt(-3, spot, null)
     }
 
     if (import.meta.env.DEV) Object.assign(window, { __gpu: gpu, __perf: { ms: performance.now() - t0, walks: walks.current, complete: complete.current, chunks: shown.length, resident: resident.size, items: Object.fromEntries(BATCHES.map(b => [b, arenas[b].high])), near: near.length, gen: lastGen.current } })

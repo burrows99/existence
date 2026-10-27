@@ -81,7 +81,7 @@ function build(): Entry[] {
       if (!s[0]) continue
       const pos: Vec3 = [SUN_POS[0] + (s[1] * LY) / mw.metres, SUN_POS[1] + (s[2] * LY) / mw.metres, SUN_POS[2] + (s[3] * LY) / mw.metres]
       const n = descend(mw, pos, k => k.kind === 'star' && k.props.name === s[0])
-      if (n) out.push(entry(s[0], n, `${s[8]} star, ${s[7]} light-years away`, 3))
+      if (n) out.push(entry(s[0], n, `${s[8]} star, ${s[7]} light-years away`, 1.8)) // inside its node, so the HUD names it
     }
   }
   const solar = nodeAt(SOLAR_KEY)

@@ -16,6 +16,7 @@ export type Volume = {
   open?: (r: Region, root: Node) => number | undefined // undefined: the PERF defaults for regions and leaves
   inside?: (node: Node, p: Vec3) => boolean // is this point (node units) inside the thing itself, not just its cube?
   deep?: boolean // nothing opaque in here: see Kind.deep
+  inner?: Kind['inner'] // drawn inside an open region besides its children
   Near?: Kind['Near'] // drawn for the root only
   nearMin?: number // and only once the root spans this fraction of the view
   nearMax?: number // hide the Near once the root spans more than this many views
@@ -74,6 +75,7 @@ export function volume(v: Volume): Kind {
     // regions open at PERF.openRegion, leaves at PERF.openLeaf, unless the volume says otherwise
     open: n => { const r = regionOf(n), root = volumeRoot(n); return v.open?.(r, root) ?? (r.depth >= v.leafDepth(root) ? PERF.openLeaf : PERF.openRegion) },
     far: n => v.far(regionOf(n), n),
+    inner: v.inner,
     Near: v.Near,
     nearFor: n => n.props.depth === 0,
     nearMin: v.nearMin,
