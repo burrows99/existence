@@ -27,7 +27,7 @@ export function mwPath() { // child indices from the universe node to the Milky 
 // Positions from the sky (J2000 right ascension in hours, declination in degrees, distance in light-years) into this
 // frame, in which the Milky Way lies flat with the Sun on its +x side and galactic north up
 const EQ_TO_GAL = [[-0.0548755604, -0.8734370902, -0.4838350155], [0.4941094279, -0.44482963, 0.7469822445], [-0.867666149, -0.1980763734, 0.4559837762]]
-function at(ra: number, dec: number, ly: number): Vec3 {
+export function at(ra: number, dec: number, ly: number): Vec3 {
   const a = (ra * 15 * Math.PI) / 180, d = (dec * Math.PI) / 180
   const e = [Math.cos(d) * Math.cos(a), Math.cos(d) * Math.sin(a), Math.sin(d)]
   const g = EQ_TO_GAL.map(row => row[0] * e[0] + row[1] * e[1] + row[2] * e[2]), k = (ly * LY) / SIDE
@@ -40,7 +40,7 @@ type Place = {
   hole?: number // a void: radius in light-years, emptied
   region?: number // just a name for everything within this radius
 }
-const CATALOGUE: Place[] = [
+export const CATALOGUE: Place[] = [
   { name: 'Andromeda', ra: 0.712, dec: 41.27, ly: 2.54e6, galaxy: { rd: 12e3 * LY, hz: 1.2e3 * LY, n: 1e12, fb: 0.2 }, fact: 'The nearest big galaxy, 2.5 million light-years away and a trillion stars strong, falling toward us at 110 km/s; the two will merge in four billion years.' },
   { name: 'Triangulum Galaxy', ra: 1.564, dec: 30.66, ly: 2.73e6, galaxy: { rd: 5e3 * LY, hz: 500 * LY, n: 4e10, fb: 0.05 }, fact: 'The third-largest galaxy of the Local Group: forty billion stars in a loose spiral with hardly any bulge.' },
   { name: 'Large Magellanic Cloud', ra: 5.393, dec: -69.76, ly: 1.63e5, galaxy: { rd: 3e3 * LY, hz: 1e3 * LY, n: 2e10, fb: 0.1 }, fact: 'The Milky Way’s biggest satellite, 14,000 light-years across and a naked-eye cloud in southern skies; the Tarantula Nebula in it is the busiest star factory nearby.' },

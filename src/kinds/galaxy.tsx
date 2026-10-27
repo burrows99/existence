@@ -15,7 +15,7 @@ const LEAF_DEPTH = 17 // ~1 light-year leaves
 // the real stars around the Sun, from the HYG catalogue (scripts/stars.mjs): every named star and everything within
 // 25 light-years: [name, x, y, z (light-years from the Sun), radius (suns), temperature (K), luminosity (suns), distance (ly), spectral type]
 type Star = [string, number, number, number, number, number, number, number, string]
-const STARS: Star[] = await fetch(`${import.meta.env.BASE_URL}data/stars.json`).then(r => r.json())
+export const STARS: Star[] = await fetch(`${import.meta.env.BASE_URL}data/stars.json`).then(r => r.json())
 const KNOWN = 25 * LY // this close to the Sun the catalogue is complete, so no procedural stars stand in
 const FARTHEST = Math.max(...STARS.map(s => s[7])) * LY
 const suns = (l: number) => (l >= 10 ? l.toFixed(0) : l >= 1 ? l.toFixed(1) : l.toPrecision(2))

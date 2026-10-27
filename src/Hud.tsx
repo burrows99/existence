@@ -1,29 +1,7 @@
 import { MIN_ZOOM, maxZoom, useCam } from './engine/camera'
-import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
-import { Quaternion, Vector3 } from 'three'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { ancestry, kindOf, kindsLoaded, subscribeKinds } from './engine/tree'
-import { PERSON } from './kinds/earth'
-import { EARTH_KEY as EARTH_IN_SOLAR } from './kinds/solar'
-import { sunPath } from './kinds/galaxy'
-import { mwPath } from './kinds/universe'
-
-const MW_KEY = `u.${mwPath()}`
-const SOLAR_KEY = `${MW_KEY}.${sunPath()}`
-const EARTH_KEY = `${SOLAR_KEY}.${EARTH_IN_SOLAR.slice(2)}`
-const PERSON_KEY = `${EARTH_KEY}.${PERSON.path}`
-// a point in the right thigh's muscle, in body units: the figure (2 m cube, hips at the centre) stands along PERSON.up
-const MUSCLE = new Vector3(0.135, -0.22, 0).applyQuaternion(new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), new Vector3(...PERSON.up).normalize())).divideScalar(2).toArray().map(v => v.toFixed(4))
-const LANDMARKS: [string, string][] = [
-  ['Universe', '#at=u&z=26.95'],
-  ['Milky Way', `#at=${MW_KEY}&z=21.2`],
-  ['Solar system', `#at=${SOLAR_KEY}&z=13.1`],
-  ['The Sun', `#at=${SOLAR_KEY}.8&z=9.3`],
-  ['Earth', `#at=${EARTH_KEY}&z=7.25`],
-  ['A person', `#at=${PERSON_KEY}&z=0.35`],
-  ['A muscle cell', `#at=${PERSON_KEY}&f=${MUSCLE}&z=-4.8`],
-  ['Molecules', `#at=${PERSON_KEY}&f=${MUSCLE}&z=-8.4`],
-  ['Atoms', `#at=${PERSON_KEY}&f=${MUSCLE}&z=-9.6`],
-]
+import { LANDMARKS, index, lookup, type Entry } from './engine/search'
 
 const UNITS: [number, string][] = [
   [9.461e24, 'billion light-years'],
@@ -56,6 +34,20 @@ function friendly(log: number) {
 }
 
 const pct = (z: number) => ((maxZoom() - z) / (maxZoom() - MIN_ZOOM)) * 100
+
+// type a name (a galaxy, a star, a planet, a cluster, a void…) and go there; the list is built on first focus
+function Search() {
+  const [things, setThings] = useState<Entry[]>([])
+  const go = (text: string) => lookup(text).then(t => { if (t) location.hash = t.href })
+  return (
+    <form className="search" role="search" onSubmit={e => { e.preventDefault(); go((e.currentTarget.elements[0] as HTMLInputElement).value) }}>
+      <input type="search" list="things" placeholder="Go to… Andromeda, Proxima Centauri, Jupiter, Boötes Void" aria-label="Go to"
+        onFocus={() => things.length || index().then(setThings)}
+        onChange={e => { const v = e.target.value; if (things.some(t => t.name.toLowerCase() === v.toLowerCase())) go(v) }} />
+      <datalist id="things">{things.map(t => <option key={t.name} value={t.name}>{t.what}</option>)}</datalist>
+    </form>
+  )
+}
 
 export function Hud() {
   const node = useCam(s => s.node)
@@ -103,6 +95,7 @@ export function Hud() {
       <nav className="landmarks" aria-label="Go to">
         {LANDMARKS.map(([label, href]) => <a key={label} href={href}>{label}</a>)}
       </nav>
+      <Search />
 
       <nav className="ruler" aria-label="Where you are">
         <div className="marker" ref={markerRef} />

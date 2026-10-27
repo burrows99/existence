@@ -126,6 +126,12 @@ export function kindOf(id: string): Kind | undefined {
 
 // for React: re-render when a kind module arrives
 export const subscribeKinds = (cb: () => void) => (listeners.add(cb), () => void listeners.delete(cb))
+// resolves once these kinds are registered (loading them if need be)
+export const ready = (...ids: string[]) => new Promise<void>(resolve => {
+  const check = () => { if (ids.every(id => kindOf(id))) { listeners.delete(check); resolve() } }
+  listeners.add(check)
+  check()
+})
 export const kindsLoaded = () => loaded
 
 // a generated node's key (its path of child indices) is spelled out only when asked for: most nodes are walked
