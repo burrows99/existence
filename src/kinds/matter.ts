@@ -32,7 +32,9 @@ export function fillWater(side: number, rng: () => number, keepOut: (p: Vec3, ra
   return out
 }
 
-// A gas: `perM3` molecules per m³ of the given species (kind, fraction, diameter), thrown in at random.
+// A gas: `perM3` molecules per m³ of the given species (kind, fraction, diameter), thrown in at random. Lone atoms
+// are named by their symbol.
+const ATOMIC: Record<string, number> = { h: 1, he: 2 }
 export function fillGas(side: number, rng: () => number, keepOut: (p: Vec3, radius: number) => boolean, perM3: number, species: [string, number, number][]): ChildSpec[] {
   const mean = perM3 * side ** 3
   let n = Math.floor(mean) + (rng() < mean - Math.floor(mean) ? 1 : 0)
@@ -42,7 +44,7 @@ export function fillGas(side: number, rng: () => number, keepOut: (p: Vec3, radi
     let u = rng(), sp = species[species.length - 1]
     for (const s of species) { if (u < s[1]) { sp = s; break } u -= s[1] }
     if (keepOut(pos, sp[2] / 2 / side)) continue
-    out.push(sp[0] === 'he' ? { kind: 'atom', pos, size: sp[2] / side, props: { z: 2 } } : { kind: sp[0], pos, size: sp[2] / side })
+    out.push(ATOMIC[sp[0]] ? { kind: 'atom', pos, size: sp[2] / side, props: { z: ATOMIC[sp[0]] } } : { kind: sp[0], pos, size: sp[2] / side })
   }
   return out
 }

@@ -93,9 +93,12 @@ export function randomRotation(rng: () => number) {
 
 const matter = () => import('../kinds/matter')
 const atom = () => import('../kinds/atom')
+const compact = () => import('../kinds/compact')
 const LOADERS: Record<string, () => Promise<{ kinds: Record<string, Kind> }>> = {
   universe: () => import('../kinds/universe'),
   galaxy: () => import('../kinds/galaxy'),
+  nebula: () => import('../kinds/nebula'),
+  blackhole: compact, horizon: compact, neutron: compact,
   solar: () => import('../kinds/solar'),
   star: () => import('../kinds/star'),
   planet: () => import('../kinds/planet'),

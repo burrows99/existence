@@ -18,6 +18,8 @@ export const PERF = {
   openPlace: 0.2, // regions that place things (cells in tissue, the person on Earth)
   samples: 48, // points a closed region of stars or galaxies is drawn with
   cloud: 400, // electron-cloud samples per electron
+  disc: 400, // accretion-disc points around an open black hole
+  gasAtoms: 10, // atoms a leaf of nebular gas holds: its size follows the density (a nanometre of nebula is empty)
 
   // --- buffers ---
   cap: { sphere: 500_000, haze: 100_000, cube: 100_000, box: 50_000, point: 600_000 }, // items per batch; past it the farthest chunks go

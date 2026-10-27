@@ -4,7 +4,7 @@ import { DoubleSide } from 'three'
 import { childrenOf, hash, inCell, mulberry32, type ChildSpec, type Node, type Vec3 } from '../engine/tree'
 import { PERF } from '../engine/perf'
 import { regionOf, rootProps, volume, type Region, type Volume } from './volume'
-import { LY, MILKY_WAY, galaxyCube } from './galaxy'
+import { EQ_TO_GAL, LY, MILKY_WAY, galaxyCube } from './galaxy'
 
 export const SIDE = 9.3e26 // metres; the observable universe is a sphere 8.8e26 m across
 const R_CMB = 4.4e26 / SIDE
@@ -26,7 +26,6 @@ export function mwPath() { // child indices from the universe node to the Milky 
 // ---- the real neighbourhood ------------------------------------------------------------------------------------
 // Positions from the sky (J2000 right ascension in hours, declination in degrees, distance in light-years) into this
 // frame, in which the Milky Way lies flat with the Sun on its +x side and galactic north up
-const EQ_TO_GAL = [[-0.0548755604, -0.8734370902, -0.4838350155], [0.4941094279, -0.44482963, 0.7469822445], [-0.867666149, -0.1980763734, 0.4559837762]]
 export function at(ra: number, dec: number, ly: number): Vec3 {
   const a = (ra * 15 * Math.PI) / 180, d = (dec * Math.PI) / 180
   const e = [Math.cos(d) * Math.cos(a), Math.cos(d) * Math.sin(a), Math.sin(d)]
@@ -41,19 +40,19 @@ type Place = {
   region?: number // just a name for everything within this radius
 }
 export const CATALOGUE: Place[] = [
-  { name: 'Andromeda', ra: 0.712, dec: 41.27, ly: 2.54e6, galaxy: { rd: 12e3 * LY, hz: 1.2e3 * LY, n: 1e12, fb: 0.2 }, fact: 'The nearest big galaxy, 2.5 million light-years away and a trillion stars strong, falling toward us at 110 km/s; the two will merge in four billion years.' },
-  { name: 'Triangulum Galaxy', ra: 1.564, dec: 30.66, ly: 2.73e6, galaxy: { rd: 5e3 * LY, hz: 500 * LY, n: 4e10, fb: 0.05 }, fact: 'The third-largest galaxy of the Local Group: forty billion stars in a loose spiral with hardly any bulge.' },
+  { name: 'Andromeda', ra: 0.712, dec: 41.27, ly: 2.54e6, galaxy: { rd: 12e3 * LY, hz: 1.2e3 * LY, n: 1e12, fb: 0.2, bh: 1.4e8 }, fact: 'The nearest big galaxy, 2.5 million light-years away and a trillion stars strong, falling toward us at 110 km/s; the two will merge in four billion years.' },
+  { name: 'Triangulum Galaxy', ra: 1.564, dec: 30.66, ly: 2.73e6, galaxy: { rd: 5e3 * LY, hz: 500 * LY, n: 4e10, fb: 0.05, bh: 0 }, fact: 'The third-largest galaxy of the Local Group: forty billion stars in a loose spiral with hardly any bulge, and no central black hole that anyone has found.' },
   { name: 'Large Magellanic Cloud', ra: 5.393, dec: -69.76, ly: 1.63e5, galaxy: { rd: 3e3 * LY, hz: 1e3 * LY, n: 2e10, fb: 0.1 }, fact: 'The Milky Way’s biggest satellite, 14,000 light-years across and a naked-eye cloud in southern skies; the Tarantula Nebula in it is the busiest star factory nearby.' },
   { name: 'Small Magellanic Cloud', ra: 0.878, dec: -72.8, ly: 2.0e5, galaxy: { rd: 1.5e3 * LY, hz: 1e3 * LY, n: 3e9, fb: 0.05 }, fact: 'A dwarf galaxy being pulled apart by the Milky Way and its bigger sibling, trailing a stream of gas across the sky.' },
   { name: 'Sagittarius Dwarf', ra: 18.917, dec: -30.48, ly: 7e4, galaxy: { rd: 1.5e3 * LY, hz: 1e3 * LY, n: 1e8, fb: 0.5 }, fact: 'A dwarf galaxy on the far side of the Milky Way’s core, in the middle of being torn apart and swallowed; its stars already wrap around our galaxy.' },
-  { name: 'Centaurus A', ra: 13.424, dec: -43.02, ly: 1.2e7, galaxy: { rd: 10e3 * LY, hz: 8e3 * LY, n: 2e11, fb: 0.9 }, fact: 'The nearest big radio galaxy: an elliptical that swallowed a spiral and is still digesting it, with a black hole of 55 million suns firing jets a million light-years long.' },
+  { name: 'Centaurus A', ra: 13.424, dec: -43.02, ly: 1.2e7, galaxy: { rd: 10e3 * LY, hz: 8e3 * LY, n: 2e11, fb: 0.9, bh: 5.5e7 }, fact: 'The nearest big radio galaxy: an elliptical that swallowed a spiral and is still digesting it, with a black hole of 55 million suns firing jets a million light-years long.' },
   { name: 'Sculptor Galaxy', ra: 0.793, dec: -25.29, ly: 1.14e7, galaxy: { rd: 8e3 * LY, hz: 800 * LY, n: 1e11, fb: 0.1 }, fact: 'A starburst spiral seen nearly edge-on, making stars many times faster than the Milky Way does.' },
   { name: 'Bode’s Galaxy (M81)', ra: 9.927, dec: 69.07, ly: 1.18e7, galaxy: { rd: 7e3 * LY, hz: 700 * LY, n: 2.5e11, fb: 0.3 }, fact: 'A grand-design spiral of 250 billion stars, locked in a gravitational dance with the Cigar Galaxy next door.' },
   { name: 'Cigar Galaxy (M82)', ra: 9.931, dec: 69.68, ly: 1.15e7, galaxy: { rd: 4e3 * LY, hz: 1e3 * LY, n: 3e10, fb: 0.2 }, fact: 'Its close pass by M81 set off a starburst: stars form ten times faster than in the Milky Way, blowing a wind of gas out of its core.' },
   { name: 'Whirlpool Galaxy (M51)', ra: 13.498, dec: 47.2, ly: 2.3e7, galaxy: { rd: 8e3 * LY, hz: 700 * LY, n: 1.6e11, fb: 0.2 }, fact: 'The first spiral ever recognised as one (1845), its arms stretched by the small galaxy hanging off one of them.' },
   { name: 'Pinwheel Galaxy (M101)', ra: 14.053, dec: 54.35, ly: 2.1e7, galaxy: { rd: 15e3 * LY, hz: 800 * LY, n: 1e12, fb: 0.1 }, fact: 'A face-on spiral 170,000 light-years across, nearly twice the Milky Way, with a trillion stars.' },
-  { name: 'Sombrero Galaxy (M104)', ra: 12.667, dec: -11.62, ly: 2.93e7, galaxy: { rd: 7e3 * LY, hz: 2e3 * LY, n: 8e11, fb: 0.6 }, fact: 'A bright bulge wrapped in a thick ring of dust, seen six degrees from edge-on, with a black hole of a billion suns at its centre.' },
-  { name: 'Messier 87', ra: 12.514, dec: 12.39, ly: 5.35e7, galaxy: { rd: 30e3 * LY, hz: 25e3 * LY, n: 1e12, fb: 0.95 }, fact: 'The giant elliptical at the heart of the Virgo Cluster: a trillion stars and 15,000 globular clusters around the black hole of 6.5 billion suns that was photographed in 2019.' },
+  { name: 'Sombrero Galaxy (M104)', ra: 12.667, dec: -11.62, ly: 2.93e7, galaxy: { rd: 7e3 * LY, hz: 2e3 * LY, n: 8e11, fb: 0.6, bh: 1e9 }, fact: 'A bright bulge wrapped in a thick ring of dust, seen six degrees from edge-on, with a black hole of a billion suns at its centre.' },
+  { name: 'Messier 87', ra: 12.514, dec: 12.39, ly: 5.35e7, galaxy: { rd: 30e3 * LY, hz: 25e3 * LY, n: 1e12, fb: 0.95, bh: 6.5e9 }, fact: 'The giant elliptical at the heart of the Virgo Cluster: a trillion stars and 15,000 globular clusters around the black hole of 6.5 billion suns that was photographed in 2019.' },
   { name: 'Local Group', ra: 0.712, dec: 41.27, ly: 1.3e6, region: 5e6, fact: 'The Milky Way, Andromeda, Triangulum and some eighty dwarf galaxies, bound together across ten million light-years; everything beyond is drifting away with the expansion of space.' },
   { name: 'Virgo Cluster', ra: 12.514, dec: 12.39, ly: 5.4e7, boost: [5e6, 20], fact: 'About 1,500 galaxies in a few million light-years, the nearest big cluster; its pull slows the Local Group’s drift away from it.' },
   { name: 'Fornax Cluster', ra: 3.633, dec: -35.45, ly: 6.2e7, boost: [4e6, 15], fact: 'The second-nearest cluster, some sixty galaxies in the southern sky.' },
@@ -77,7 +76,7 @@ export const CATALOGUE: Place[] = [
   { name: 'NGC 3628', ra: 11.337, dec: 13.59, ly: 3.5e7, galaxy: { rd: 7e3 * LY, hz: 800 * LY, n: 1e11, fb: 0.2 }, fact: 'The Hamburger Galaxy: a spiral seen exactly edge-on, split by a dark lane of dust, trailing a tail of stars 300,000 light-years long.' },
   { name: 'Antennae Galaxies', ra: 12.031, dec: -18.87, ly: 4.5e7, galaxy: { rd: 8e3 * LY, hz: 1.5e3 * LY, n: 3e11, fb: 0.3 }, fact: 'Two spirals, NGC 4038 and 4039, in the middle of colliding: 45 million light-years away, their stars thrown out in two long tails. Drawn here as one galaxy.' },
   { name: 'Hoag’s Object', ra: 15.287, dec: 21.59, ly: 6.0e8, galaxy: { rd: 15e3 * LY, hz: 1.5e3 * LY, n: 1e11, fb: 0.5 }, fact: 'A ring galaxy 600 million light-years away: a core of old yellow stars inside a detached ring of young blue ones, with almost nothing between. Nobody is sure how it formed.' },
-  { name: 'Cygnus A', ra: 19.991, dec: 40.73, ly: 7.6e8, galaxy: { rd: 15e3 * LY, hz: 10e3 * LY, n: 3e11, fb: 0.9 }, fact: 'The brightest radio galaxy in the sky, 760 million light-years away: an elliptical whose central black hole fires two jets that end in lobes 500,000 light-years apart.' },
+  { name: 'Cygnus A', ra: 19.991, dec: 40.73, ly: 7.6e8, galaxy: { rd: 15e3 * LY, hz: 10e3 * LY, n: 3e11, fb: 0.9, bh: 2.5e9 }, fact: 'The brightest radio galaxy in the sky, 760 million light-years away: an elliptical whose central black hole fires two jets that end in lobes 500,000 light-years apart.' },
   { name: '3C 273', ra: 12.485, dec: 2.05, ly: 2.44e9, galaxy: { rd: 15e3 * LY, hz: 10e3 * LY, n: 5e11, fb: 0.9, bh: 8.9e8 }, fact: 'The first quasar identified (1963) and the brightest in our sky: a black hole of 900 million suns, 2.4 billion light-years away, feeding so hard that its disc outshines four trillion Suns.' },
   { name: 'TON 618', ra: 12.473, dec: 31.47, ly: 1.82e10, galaxy: { rd: 20e3 * LY, hz: 15e3 * LY, n: 1e12, fb: 0.9, bh: 6.6e10 }, fact: 'A quasar whose light left 10.4 billion years ago (the galaxy is now 18 billion light-years away): around a black hole of some 40 to 66 billion suns, one of the most massive known.' },
   { name: 'IC 1101', ra: 15.182, dec: 5.74, ly: 1.04e9, galaxy: { rd: 1.5e5 * LY, hz: 1e5 * LY, n: 1e14, fb: 0.95 }, fact: 'The largest galaxy known: a giant elliptical at the centre of the cluster Abell 2029, a billion light-years away, with a diffuse halo of stars four million light-years across and a hundred trillion stars.' },

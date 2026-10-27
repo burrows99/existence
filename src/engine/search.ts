@@ -4,7 +4,7 @@
 import { childrenOf, kindOf, ready, type Node, type Vec3 } from './tree'
 import { root } from './camera'
 import { CATALOGUE, MW_POS, at, mwPath } from '../kinds/universe'
-import { LY, STARS, SUN_POS, sunPath } from '../kinds/galaxy'
+import { LY, OBJECTS, STARS, SUN_POS, sunPath } from '../kinds/galaxy'
 import { EARTH_KEY as EARTH_IN_SOLAR, PLANETS } from '../kinds/solar'
 import { PERSON } from '../kinds/earth'
 import { Quaternion, Vector3 } from 'three'
@@ -82,6 +82,11 @@ function build(): Entry[] {
       const pos: Vec3 = [SUN_POS[0] + (s[1] * LY) / mw.metres, SUN_POS[1] + (s[2] * LY) / mw.metres, SUN_POS[2] + (s[3] * LY) / mw.metres]
       const n = descend(mw, pos, k => k.kind === 'star' && k.props.name === s[0])
       if (n) out.push(entry(s[0], n, `${s[8]} star, ${s[7]} light-years away`, 1.8)) // inside its node, so the HUD names it
+    }
+    // the galaxy's own catalogue: black holes, pulsars and nebulae are placed things; clusters and arms are named regions
+    for (const o of OBJECTS) {
+      const n = o.placed ? descend(mw, o.pos, k => k.props.name === o.name) : descend(mw, o.pos, undefined, o.radius * 2)
+      if (n) out.push(entry(o.name, n, o.what, o.placed ? 1.5 : 1))
     }
   }
   const solar = nodeAt(SOLAR_KEY)
