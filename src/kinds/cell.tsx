@@ -175,7 +175,6 @@ const cell: Volume = {
   leafDepth: root => specOf(root).leaf,
   placeDepth: root => specOf(root).place,
   inside: (_, p) => len(p) < R_CELL,
-  open: (r, root) => (r.depth >= specOf(root).leaf ? 0.15 : 0.1),
   Near: Organelles,
   nearOnPath: true, // the organelle outlines are a guide for the cell you are in, not for every cell in a tissue
   nearMax: 160, // and deep inside, the molecules speak for themselves

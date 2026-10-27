@@ -26,8 +26,7 @@ export const LIB: Molecule[] = await Promise.all(
 export const diameterOf = (m: number) => LIB[m].diameter * 1e-10 // metres
 
 const molecule: Kind = {
-  open: 0.3, // atom nodes once it spans a third of the view
-  detail: ATOMS,
+  detail: ATOMS, // atom nodes once it spans PERF.open of the view; its atoms drawn exactly well before that
   jitter: 10e-12,
   far: n => ({ shape: 'sphere', color: LIB[n.props.m as number].color }),
   children: (node, rng) => {

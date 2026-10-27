@@ -3,7 +3,8 @@
 // light-years out in the Milky Way, and the solar system is placed there.
 import { useMemo } from 'react'
 import { AdditiveBlending, Color } from 'three'
-import { childrenOf, hash, mulberry32, type ChildSpec, type Far, type Node, type Vec3 } from '../engine/tree'
+import { childrenOf, hash, inCell, mulberry32, type ChildSpec, type Far, type Node, type Vec3 } from '../engine/tree'
+import { PERF } from '../engine/perf'
 import { rootProps, volume, volumeRoot, type Region, type Volume } from './volume'
 import { starColor } from './star'
 
@@ -150,19 +151,15 @@ const galaxy: Volume = {
     if (r.depth === 0) return { shape: 'haze', color: S.fb > 0.5 ? '#ffd9a6' : '#cbd8ff', scale: 8 * S.rd, minPx: 2 } // a closed galaxy, seen from outside: its glow
     if (r.depth < 5) return null // the star cloud shows the whole galaxy; regions this big would only double it
     const rng = mulberry32(hash(node.seed, 0x57a))
+    // the density at 27 points of the region: a cell is picked by its weight and a point drawn anywhere in it
     const samples = [-0.5, 0, 0.5].flatMap(x => [-0.5, 0, 0.5].flatMap(y => [-0.5, 0, 0.5].map(z => density([r.c[0] + x * r.s, r.c[1] + y * r.s, r.c[2] + z * r.s], S))))
-    const dmax = Math.max(...samples), mean = (samples.reduce((a, b) => a + b, 0) / 27) * r.s ** 3
-    const n = Math.min(48, Math.floor(mean) + (rng() < mean - Math.floor(mean) ? 1 : 0))
-    const alpha = Math.min(1, Math.max(0.12, Math.log10(mean / 48) / 6 + 0.12)) // 48 points stand for up to 10⁸ stars: brighter for more
+    const total = samples.reduce((a, b) => a + b, 0), mean = (total / 27) * r.s ** 3
+    const n = Math.min(PERF.samples, Math.floor(mean) + (rng() < mean - Math.floor(mean) ? 1 : 0))
+    const alpha = Math.min(1, Math.max(0.12, Math.log10(mean / PERF.samples) / 6 + 0.12)) // the samples stand for up to 10⁸ stars: brighter for more
     const out: Far[] = []
     // near the Sun the real stars are drawn instead of samples (the catalogue is complete there), and among them further out
     const side = r.s * S.metres, d = S.mw ? [0, 1, 2].map(i => (r.c[i] - SUN_POS[i]) * S.metres) : [Infinity, 0, 0], fromSun = Math.hypot(d[0], d[1], d[2])
-    if (fromSun - side * 0.87 > KNOWN) for (let i = 0, tries = 0; i < n && tries < 800; tries++) {
-      const pos = [0, 1, 2].map(() => rng() - 0.5) as Vec3
-      if (rng() * dmax > density([r.c[0] + pos[0] * r.s, r.c[1] + pos[1] * r.s, r.c[2] + pos[2] * r.s], S)) continue
-      out.push({ shape: 'point', color: starColor(starOf(imfMass(rng)).t), pos, alpha })
-      i++
-    }
+    if (fromSun - side * 0.87 > KNOWN) for (let i = 0; i < n; i++) out.push({ shape: 'point', color: starColor(starOf(imfMass(rng)).t), pos: inCell(samples, total, rng), alpha })
     if (fromSun - side * 0.87 < FARTHEST) for (const s of STARS) {
       const p = [s[1] * LY - d[0], s[2] * LY - d[1], s[3] * LY - d[2]]
       if (Math.max(Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2])) < side / 2) out.push({ shape: 'point', color: starColor(s[5]), pos: [p[0] / side, p[1] / side, p[2] / side] })

@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { DoubleSide, Quaternion, Vector3 } from 'three'
 import { childrenOf, hash, mulberry32, type ChildSpec, type Far, type Node, type Vec3 } from '../engine/tree'
 import { hitsAtoms, inclusions, rootProps, volume, type Volume } from './volume'
+import { PERF } from '../engine/perf'
 import { fillAir, fillWater } from './matter'
 import { TYPES, cubeOf } from './cell'
 
@@ -135,7 +136,7 @@ function Figure({ node }: { node: Node }) {
 const body: Volume = {
   leafDepth: () => LEAF_DEPTH,
   placeDepth: () => PLACE_DEPTH,
-  open: r => (r.depth === PLACE_DEPTH ? 0.2 : r.depth >= LEAF_DEPTH ? 0.15 : 0.1),
+  open: r => (r.depth === PLACE_DEPTH ? PERF.openPlace : undefined),
   Near: Figure,
   nearMax: SIDE / 2e-3, // the outline is a guide down to a couple of millimetres
   inside: (node, p) => bodySdf(toFigure(node, p)) < 0,

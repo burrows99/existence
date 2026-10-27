@@ -59,7 +59,8 @@ How Minecraft draws a world and how Mol* draws a million atoms, combined:
 - Starting a few levels above the current node, walk down the tree. A node is **opened** (children generated and drawn) if it appears bigger than a threshold on screen, otherwise its `far` look is drawn: a sphere/haze/point, a *sample* of what it holds (thinned on the GPU as it shrinks), or its `detail` (a molecule's exact atoms) once it is a few pixels across.
 - Every open node owns a **chunk**: one packed buffer of its closed children's items, in its own units, rebuilt only when which of its children are open changes (like a Minecraft chunk mesh). Per frame the CPU uploads one transform per chunk (a 128×128 float texture); the GPU places, jitters, cuts away and thins every item. While the view stands still nothing is walked at all.
 - **Spheres are ray-cast impostors** (two triangles each, depth written per pixel, like Mol*), so half a million atoms are one draw call. Five batches in all: spheres, haze, cubes, boxes, points.
-- What is in play is the screen rectangle × the cutaway slab, so dense matter stays bounded (~500k atoms of seawater); kinds marked `deep` (space) draw as far behind as beside. Generation is budgeted (7 ms per walk), nearest first; the farthest chunks are what any cap cuts off.
+- What is in play is the screen rectangle × the cutaway slab, so dense matter stays bounded (~500k atoms of seawater); kinds marked `deep` (space) draw as far behind as beside. Generation and chunk rebuilding are each budgeted per walk, nearest first: a chunk that cannot be rebuilt yet keeps drawing as it was (detail streams in over a few frames, like Minecraft chunks loading), and the farthest chunks are what any cap cuts off.
+- **Every knob lives in `src/engine/perf.ts`** (`PERF`): budgets, cutaway slab, open thresholds, sample counts, buffer caps, DPR, bloom, point size. In dev it is `window.PERF`.
 
 ### 4. URL = location
 

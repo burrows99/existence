@@ -2,6 +2,7 @@
 // at a point can be a function of where it is (inside the nucleus, near a membrane, below the crust…).
 // Regions at `placeDepth` may place things (molecules, cells…) that the leaves then leave room for.
 import { childrenOf, hash, kindOf, mulberry32, type ChildSpec, type Far, type Kind, type Node, type Vec3 } from '../engine/tree'
+import { PERF } from '../engine/perf'
 
 export type Region = { c: Vec3; s: number; depth: number } // centre and side, in root units
 export type Inclusion = { node: Node; c: Vec3; s: number } // a placed thing, in leaf units
@@ -12,7 +13,7 @@ export type Volume = {
   placements?: (r: Region, rng: () => number, node: Node) => ChildSpec[] // pos/size in region units
   fill: (r: Region, rng: () => number, leaf: Node) => ChildSpec[] // leaf contents, pos in leaf units
   far: (r: Region, node: Node) => Far | Far[] | null
-  open?: (r: Region, root: Node) => number
+  open?: (r: Region, root: Node) => number | undefined // undefined: the PERF defaults for regions and leaves
   inside?: (node: Node, p: Vec3) => boolean // is this point (node units) inside the thing itself, not just its cube?
   deep?: boolean // nothing opaque in here: see Kind.deep
   Near?: Kind['Near'] // drawn for the root only
@@ -24,13 +25,8 @@ export type Volume = {
 
 export const rootProps = { depth: 0, x: 0, y: 0, z: 0, s: 1 }
 export const regionOf = (n: Node): Region => ({ c: [n.props.x as number, n.props.y as number, n.props.z as number], s: n.props.s as number, depth: n.props.depth as number })
-// the top of this volume: regions share their root's kind (memoised: asked for every region, every frame)
-const roots = new WeakMap<Node, Node>()
-export function volumeRoot(n: Node): Node {
-  let r = roots.get(n)
-  if (!r) roots.set(n, (r = n.parent && n.parent.kind === n.kind ? volumeRoot(n.parent) : n))
-  return r
-}
+// the top of this volume: regions share their root's kind (cached on the node: asked for every new region)
+export const volumeRoot = (n: Node): Node => n.vroot ?? (n.vroot = n.parent && n.parent.kind === n.kind ? volumeRoot(n.parent) : n)
 
 const placed = new WeakMap<Node, ChildSpec[]>()
 function placementsOf(v: Volume, n: Node) {
@@ -75,7 +71,8 @@ export function volume(v: Volume): Kind {
     space: true,
     deep: v.deep,
     inside: v.inside,
-    open: n => v.open?.(regionOf(n), volumeRoot(n)) ?? 0.1,
+    // regions open at PERF.openRegion, leaves at PERF.openLeaf, unless the volume says otherwise
+    open: n => { const r = regionOf(n), root = volumeRoot(n); return v.open?.(r, root) ?? (r.depth >= v.leafDepth(root) ? PERF.openLeaf : PERF.openRegion) },
     far: n => v.far(regionOf(n), n),
     Near: v.Near,
     nearFor: n => n.props.depth === 0,

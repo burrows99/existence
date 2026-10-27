@@ -1,7 +1,8 @@
 // The observable universe: galaxies along a cosmic web, with the Milky Way at the centre (that is what "observable"
 // means), Andromeda 2.5 million light-years away, and the cosmic microwave background at the edge.
 import { DoubleSide } from 'three'
-import { childrenOf, hash, mulberry32, type ChildSpec, type Far, type Vec3 } from '../engine/tree'
+import { childrenOf, hash, inCell, mulberry32, type ChildSpec, type Far, type Vec3 } from '../engine/tree'
+import { PERF } from '../engine/perf'
 import { rootProps, volume, type Volume } from './volume'
 import { LY, MILKY_WAY, galaxyCube } from './galaxy'
 
@@ -134,18 +135,15 @@ const universe: Volume = {
       return out.length ? out : null
     }
     const rng = mulberry32(hash(node.seed, 0x6a1a))
+    // the density at 27 points of the region: a cell is picked by its weight and a point drawn anywhere in it
+    // (27 density calls per region, however many samples; rejection sampling cost hundreds)
     const samples = [-0.5, 0, 0.5].flatMap(x => [-0.5, 0, 0.5].flatMap(y => [-0.5, 0, 0.5].map(z => density([r.c[0] + x * r.s, r.c[1] + y * r.s, r.c[2] + z * r.s]))))
-    const dmax = Math.max(...samples), mean = (samples.reduce((a, b) => a + b, 0) / 27) * r.s ** 3
-    const n = Math.min(48, Math.floor(mean) + (rng() < mean - Math.floor(mean) ? 1 : 0))
+    const total = samples.reduce((a, b) => a + b, 0), mean = (total / 27) * r.s ** 3
+    const n = Math.min(PERF.samples, Math.floor(mean) + (rng() < mean - Math.floor(mean) ? 1 : 0))
     if (n < 1) return null
-    const alpha = Math.min(1, Math.max(0.2, Math.log10(mean / 48) / 4 + 0.2))
+    const alpha = Math.min(1, Math.max(0.2, Math.log10(mean / PERF.samples) / 4 + 0.2))
     const out: Far[] = []
-    for (let i = 0, tries = 0; i < n && tries < 800; tries++) {
-      const pos = [0, 1, 2].map(() => rng() - 0.5) as Vec3
-      if (rng() * dmax * 1.5 > density([r.c[0] + pos[0] * r.s, r.c[1] + pos[1] * r.s, r.c[2] + pos[2] * r.s])) continue
-      out.push({ shape: 'point', color: pick(rng).color, pos, alpha })
-      i++
-    }
+    for (let i = 0; i < n; i++) out.push({ shape: 'point', color: pick(rng).color, pos: inCell(samples, total, rng), alpha })
     return out
   },
 

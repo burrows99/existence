@@ -1,5 +1,5 @@
 import { MIN_ZOOM, maxZoom, useCam } from './engine/camera'
-import { useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { Quaternion, Vector3 } from 'three'
 import { ancestry, kindOf, kindsLoaded, subscribeKinds } from './engine/tree'
 import { PERSON } from './kinds/earth'
@@ -55,25 +55,42 @@ function friendly(log: number) {
   return unit ? `${(metres / unit[0]).toPrecision(3)} ${unit[1]}` : null
 }
 
+const pct = (z: number) => ((maxZoom() - z) / (maxZoom() - MIN_ZOOM)) * 100
+
 export function Hud() {
   const node = useCam(s => s.node)
-  const zoom = useCam(s => s.zoom)
   const zoomTo = useCam(s => s.zoomTo)
-  useSyncExternalStore(subscribeKinds, kindsLoaded)
-  const path = ancestry(node).map(n => ({ n, title: kindOf(n.kind)?.info(n).title ?? '…' }))
-  const info = kindOf(node.kind)?.info(node)
-  // collapse runs of the same title (the water octree), keeping the smallest
-  const marks = path.filter((p, i) => path[i + 1]?.title !== p.title)
-  const pct = (z: number) => ((maxZoom() - z) / (maxZoom() - MIN_ZOOM)) * 100
+  const loaded = useSyncExternalStore(subscribeKinds, kindsLoaded)
+  // the breadcrumb only changes with the node (not every frame of a zoom): collapse runs of the same title (the
+  // water octree), keeping the smallest
+  const { info, marks } = useMemo(() => {
+    const path = ancestry(node).map(n => ({ n, title: kindOf(n.kind)?.info(n).title ?? '…' }))
+    return { info: kindOf(node.kind)?.info(node), marks: path.filter((p, i) => path[i + 1]?.title !== p.title) }
+  }, [node, loaded])
   // labels sit at their true size but never closer than 2.4% of the ruler
   const tops = marks.map(m => pct(Math.log10(m.n.metres)))
   for (let i = 1; i < tops.length; i++) tops[i] = Math.max(tops[i], tops[i - 1] + 2.4)
+  // the size readout and the ruler's marker follow the zoom every frame, straight into the DOM: a React render of
+  // the whole HUD per frame was a millisecond of every zoom
+  const sizeRef = useRef<HTMLDivElement>(null), friendlyRef = useRef<HTMLDivElement>(null), markerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    let shown = NaN
+    const show = (zoom: number) => {
+      if (zoom === shown) return
+      shown = zoom
+      if (sizeRef.current) sizeRef.current.textContent = scientific(zoom)
+      if (friendlyRef.current) friendlyRef.current.textContent = friendly(zoom) ?? 'below the smallest SI unit'
+      if (markerRef.current) markerRef.current.style.top = `${pct(zoom)}%`
+    }
+    show(useCam.getState().zoom)
+    return useCam.subscribe(s => show(s.zoom))
+  }, [])
 
   return (
     <>
       <div className="hud">
-        <div className="size">{scientific(zoom)}</div>
-        <div className="friendly">{friendly(zoom) ?? 'below the smallest SI unit'}</div>
+        <div className="size" ref={sizeRef} />
+        <div className="friendly" ref={friendlyRef} />
         <div className="path">{marks.map(p => p.title).join(' › ')}</div>
         {info && (
           <div className="info">
@@ -88,7 +105,7 @@ export function Hud() {
       </nav>
 
       <nav className="ruler" aria-label="Where you are">
-        <div className="marker" style={{ top: `${pct(zoom)}%` }} />
+        <div className="marker" ref={markerRef} />
         {marks.map(({ n, title }, i) => (
           <button key={n.key} style={{ top: `${tops[i]}%` }} onClick={() => zoomTo(Math.log10(n.metres) + 0.2)}>
             {title}

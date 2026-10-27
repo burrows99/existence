@@ -5,6 +5,7 @@ import { Suspense, useMemo } from 'react'
 import { useLoader } from '@react-three/fiber'
 import { BufferGeometry, Float32BufferAttribute, SRGBColorSpace, TextureLoader } from 'three'
 import { kindOf, type ChildSpec, type Node, type Vec3 } from '../engine/tree'
+import { PERF } from '../engine/perf'
 import { rootProps, volume, type Region, type Volume } from './volume'
 
 const SIDE = 1.3e7 // metres
@@ -126,7 +127,7 @@ const infos = new WeakMap<Node, { title: string; fact?: string }>()
 const earth: Volume = {
   leafDepth: () => LEAF_DEPTH,
   placeDepth: () => PLACE_DEPTH,
-  open: r => (r.depth === PLACE_DEPTH ? 0.2 : r.depth >= LEAF_DEPTH ? 0.15 : 0.1),
+  open: r => (r.depth === PLACE_DEPTH ? PERF.openPlace : undefined),
   Near: () => <Suspense fallback={null}><Globe /></Suspense>,
   nearMax: SIDE / 300e3, // the globe's pixels are 20 km wide: closer than that the rock itself is the ground
 

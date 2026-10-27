@@ -62,7 +62,6 @@ const CENTRE = new Vector3(0, (Math.cos(ANGLE / 2) * BOND) / 3, 0)
 const VDW: Record<number, number> = { 1: 120e-12, 7: 155e-12, 8: 152e-12 }
 
 const h2o: Kind = {
-  open: 0.3,
   detail: ATOMS,
   jitter: 10e-12, // thermal vibration, ~0.1 Å
   far: () => ({ shape: 'sphere', color: '#9fd3ff' }),
@@ -79,7 +78,6 @@ const h2o: Kind = {
 // a diatomic molecule, drawn 0.42 nm across
 function diatomic(z: number, bond: number, color: string, title: string, fact: string): Kind {
   return {
-    open: 0.3,
     detail: ATOMS,
     jitter: 10e-12,
     far: () => ({ shape: 'sphere', color }),
@@ -93,7 +91,6 @@ function diatomic(z: number, bond: number, color: string, title: string, fact: s
 
 // carbon dioxide: linear, C=O 1.16 Å
 const co2: Kind = {
-  open: 0.3,
   detail: ATOMS,
   jitter: 10e-12,
   far: () => ({ shape: 'sphere', color: '#b0b0b0' }),

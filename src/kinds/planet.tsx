@@ -40,7 +40,6 @@ function layerAt(P: Planet, x: number) { // x: fraction of the planet's radius
 
 const planet: Volume = {
   leafDepth: root => Math.round(Math.log2(root.metres / BLOCK)),
-  open: (r, root) => (r.depth >= Math.round(Math.log2(root.metres / BLOCK)) ? 0.15 : 0.1),
   Near: ({ node }) => {
     const P = PLANETS[node.props.p as number]
     return (

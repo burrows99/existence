@@ -47,7 +47,6 @@ const FACTS: Record<string, [string, string, string]> = {
 
 const fluid: Volume = {
   leafDepth,
-  open: (r, root) => (r.depth >= leafDepth(root) ? 0.15 : 0.1),
   fill: (r, rng, leaf) => {
     const root = volumeRoot(leaf), side = r.s * root.metres, f = root.props.f as string
     if (f === 'air') return fillAir(side, rng, () => false, (root.props.d as number) ?? 1)
