@@ -7,6 +7,7 @@ export type Props = Record<string, number | string>
 // A thing in existence. Frames are axis-aligned: a child is an offset + uniform scale inside its parent.
 export type Node = {
   key: string // child indices from the root, so it doubles as a URL
+  index?: number // which child of its parent
   kind: string
   seed: number
   props: Props
@@ -16,7 +17,9 @@ export type Node = {
   metres: number // diameter, in metres
   children?: Node[]
   far?: Far | Far[] | null
-  seen?: number // last frame this node was drawn; stale subtrees get evicted
+  open?: number // cached: the view fraction this node must span before its children are drawn instead
+  vroot?: Node // cached: the top of the volume this region belongs to (kinds/volume.ts)
+  seen?: number // last walk this node was drawn in; stale subtrees get evicted
 }
 
 export type ChildSpec = { kind: string; pos: Vec3; size: number; props?: Props }
@@ -29,21 +32,36 @@ export type Far = {
   alpha?: number // brightness of a point, for a sample that stands in for many
   glow?: boolean // pushed past 1 so Bloom catches it
   minPx?: number // point-like: never drawn smaller than this
+  flash?: boolean // an event: a brief bright burst now and then (a fusion), invisible between
+  phase?: number // its own timing, radians (default: its node's)
 }
 
 export type Kind = {
   // deterministic in node.seed: the same node always regenerates the same contents
   children?: (node: Node, rng: () => number) => ChildSpec[]
-  far: (node: Node) => Far | Far[] | null // null: draw nothing when closed (empty space)
+  far: (node: Node) => Far | Far[] | null // null: draw nothing when closed (empty space); an array is a sample, thinned when small
+  detail?: { at: number; far: (node: Node) => Far[] } // what a closed node is drawn as instead once it spans `at` of the view
+  inner?: (node: Node) => Far[] // drawn inside an open node, in its units, besides its children (an atom's electron cloud)
   Near?: ComponentType<{ node: Node }> // detail drawn in node units while the node is open
   nearFor?: (node: Node) => boolean // which nodes of this kind get a Near (default: all)
+  nearOnPath?: boolean // only the one the camera is inside gets its Near (its neighbours would be the same picture many times over)
   open?: number | ((node: Node) => number) // fraction of the view height a node must span to open (default 0.3)
   near?: number // same, for Near (default: open)
+  nearMin?: number // no Near until the node spans this fraction of the view (default 0)
   nearMax?: number // and no Near once the node spans more than this many views (deep inside it)
   space?: boolean // just a region of space: never something to lock on to
+  deep?: boolean // nothing opaque in here (stars, galaxies): drawn as far behind the focus as beside it, not just the cutaway slab
   inside?: (node: Node, p: Vec3) => boolean // for space kinds: is a point (node units) inside the thing itself?
   jitter?: number // thermal / confinement motion amplitude, metres
   info: (node: Node) => { title: string; fact?: string }
+}
+
+// a random point in a unit cube whose density was sampled at 27 points (a 3×3×3 lattice, x outermost): one of the
+// 27 cells by weight, then uniformly within it
+export function inCell(weights: number[], total: number, rng: () => number): Vec3 {
+  let u = rng() * total, k = 0
+  while (k < 26 && u >= weights[k]) u -= weights[k++]
+  return [(Math.floor(k / 9) - 1 + rng() - 0.5) / 3, ((Math.floor(k / 3) % 3) - 1 + rng() - 0.5) / 3, ((k % 3) - 1 + rng() - 0.5) / 3]
 }
 
 // ---- seeded randomness -------------------------------------------------------
@@ -110,14 +128,24 @@ export function kindOf(id: string): Kind | undefined {
 
 // for React: re-render when a kind module arrives
 export const subscribeKinds = (cb: () => void) => (listeners.add(cb), () => void listeners.delete(cb))
+// resolves once these kinds are registered (loading them if need be)
+export const ready = (...ids: string[]) => new Promise<void>(resolve => {
+  const check = () => { if (ids.every(id => kindOf(id))) { listeners.delete(check); resolve() } }
+  listeners.add(check)
+  check()
+})
 export const kindsLoaded = () => loaded
+
+// a generated node's key (its path of child indices) is spelled out only when asked for: most nodes are walked
+// a few thousand at a time and never named, and the strings were the largest thing in memory
+const MADE = Object.defineProperty({}, 'key', { get(this: Node & { _key?: string }) { return (this._key ??= `${this.parent!.key}.${this.index}`) } })
 
 export function childrenOf(node: Node): Node[] {
   if (node.children) return node.children
   const kind = kindOf(node.kind)
   if (!kind) return [] // not loaded yet; try again next frame
-  node.children = (kind.children?.(node, mulberry32(node.seed)) ?? []).map((c, i) => ({
-    key: `${node.key}.${i}`,
+  node.children = (kind.children?.(node, mulberry32(node.seed)) ?? []).map((c, i) => Object.assign(Object.create(MADE), {
+    index: i,
     kind: c.kind,
     seed: hash(node.seed, i),
     props: c.props ?? {},
@@ -125,7 +153,7 @@ export function childrenOf(node: Node): Node[] {
     pos: c.pos,
     size: c.size,
     metres: node.metres * c.size,
-  }))
+  }) as Node)
   return node.children
 }
 

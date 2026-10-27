@@ -28,7 +28,6 @@ function grainOf(root: Node): Grain {
 
 const grain: Volume = {
   leafDepth: root => Math.round(Math.log2(root.metres / 1.46e-9)),
-  open: (r, root) => (r.depth >= Math.round(Math.log2(root.metres / 1.46e-9)) ? 0.15 : 0.1),
 
   // every lattice point of the unit cell that falls inside this leaf
   fill: (r, _rng, leaf) => {

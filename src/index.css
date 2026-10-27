@@ -19,3 +19,8 @@ body { font-family: system-ui, sans-serif; color: #e8ecf4; }
 .landmarks { position: fixed; bottom: 40px; left: 24px; display: flex; gap: 14px; font-size: 12px; }
 .landmarks a { color: #9fd3ff; text-decoration: none; opacity: 0.8; }
 .landmarks a:hover { opacity: 1; text-decoration: underline; }
+
+.search { position: fixed; top: 24px; right: 190px; }
+.search input { width: 300px; padding: 7px 10px; border-radius: 8px; border: 1px solid #ffffff30; background: #0b0d14cc; color: #fff; font: 13px system-ui, sans-serif; outline: none; }
+.search input:focus { border-color: #9fd3ff; }
+.search input::placeholder { color: #ffffff80; }

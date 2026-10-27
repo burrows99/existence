@@ -4,6 +4,7 @@ import { OrbitControls } from '@react-three/drei'
 import { Bloom, EffectComposer } from '@react-three/postprocessing'
 import { CAMERA_DISTANCE, FOV, World } from './engine/World'
 import { useCam } from './engine/camera'
+import { PERF } from './engine/perf'
 import { Hud } from './Hud'
 
 export default function App() {
@@ -18,14 +19,16 @@ export default function App() {
 
   return (
     <>
-      <Canvas dpr={[1, 1.5]} camera={{ position: [0, 0.55 * CAMERA_DISTANCE, 0.835 * CAMERA_DISTANCE], fov: FOV, near: 0.05, far: 5000 }}>
+      <Canvas dpr={PERF.dpr} camera={{ position: [0, 0.55 * CAMERA_DISTANCE, 0.835 * CAMERA_DISTANCE], fov: FOV, near: 0.05, far: 5000 }}>
         <ambientLight intensity={0.6} />
         <directionalLight position={[5, 8, 10]} intensity={2} />
         <World />
         <OrbitControls enableZoom={false} enablePan={false} />
-        <EffectComposer>
-          <Bloom mipmapBlur luminanceThreshold={1} intensity={1} />
-        </EffectComposer>
+        {PERF.bloom > 0 && (
+          <EffectComposer resolutionScale={PERF.bloom}>
+            <Bloom mipmapBlur luminanceThreshold={1} intensity={1} />
+          </EffectComposer>
+        )}
       </Canvas>
       <Hud />
     </>

@@ -1,8 +1,15 @@
 // Real molecules from experimental structures (NMR entries, PubChem 3D conformers and PDB ideal ligand geometries,
 // all with hydrogens), prepared by scripts/molecules.mjs. A molecule is nothing but its atoms.
 import { Quaternion } from 'three'
-import { randomRotation, type Kind, type Vec3 } from '../engine/tree'
+import { childrenOf, randomRotation, type Far, type Kind, type Node, type Vec3 } from '../engine/tree'
 import { element } from './orbitals.ts'
+
+// a closed molecule is its atoms, exactly, once it is a few pixels across (a blob before that): opening it into
+// atom *nodes* is for when you want to zoom into one
+export const ATOMS: Kind['detail'] = {
+  at: 0.03,
+  far: (n: Node): Far[] => childrenOf(n).map(a => ({ shape: 'sphere', color: element(a.props.z as number)[5], scale: a.size, pos: a.pos })),
+}
 
 type Molecule = {
   id: string; name: string; fact: string; color: string; diameter: number // Å
@@ -19,7 +26,7 @@ export const LIB: Molecule[] = await Promise.all(
 export const diameterOf = (m: number) => LIB[m].diameter * 1e-10 // metres
 
 const molecule: Kind = {
-  open: 0.3, // atoms once it spans a third of the view; a coloured blob before that (the budget is the atoms')
+  detail: ATOMS, // atom nodes once it spans PERF.open of the view; its atoms drawn exactly well before that
   jitter: 10e-12,
   far: n => ({ shape: 'sphere', color: LIB[n.props.m as number].color }),
   children: (node, rng) => {

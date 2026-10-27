@@ -1,5 +1,5 @@
 // A block of fluid: seawater, air (thinner with altitude) or molten iron.
-import type { ChildSpec, Node, Vec3 } from '../engine/tree'
+import { childrenOf, type ChildSpec, type Node, type Vec3 } from '../engine/tree'
 import { volume, volumeRoot, type Volume } from './volume'
 import { fillAir, fillGas, fillWater } from './matter'
 import { element } from './orbitals.ts'
@@ -40,14 +40,13 @@ const FACTS: Record<string, [string, string, string]> = {
   water: ['Seawater', '#1e5aa8', 'Water with 0.6 moles of salt per litre: sodium and chloride ions drifting among the molecules. 1.3 billion cubic kilometres of it.'],
   air: ['Air', '', 'Nitrogen and oxygen, thinning with altitude: half as dense every 5.5 km up.'],
   melt: ['Molten iron', '#c05a2a', 'The outer core: liquid iron and nickel at 4,000 °C, churning slowly, which is what makes the Earth’s magnetic field.'],
-  plasma: ['Plasma', '#ffd080', 'Hydrogen and helium too hot to hold their electrons: bare protons and helium nuclei in a sea of free electrons. Where the real density exceeds 300 particles per block it is drawn thinner.'],
+  plasma: ['Plasma', '#ffd080', 'Hydrogen and helium too hot to hold their electrons: bare protons and helium nuclei in a sea of free electrons. Where the real density exceeds 300 particles per block it is drawn thinner. In a star’s core the flashes are fusion: four protons at a time becoming a helium nucleus (the proton–proton chain), drawn far more often than the real once every few hours in a block this small.'],
   h2: ['Hydrogen', '', 'Hydrogen molecules with some helium atoms, thicker the deeper you go.'],
   co2: ['Carbon dioxide', '', 'Carbon dioxide, thinning with altitude.'],
 }
 
 const fluid: Volume = {
   leafDepth,
-  open: (r, root) => (r.depth >= leafDepth(root) ? 0.15 : 0.1),
   fill: (r, rng, leaf) => {
     const root = volumeRoot(leaf), side = r.s * root.metres, f = root.props.f as string
     if (f === 'air') return fillAir(side, rng, () => false, (root.props.d as number) ?? 1)
@@ -61,9 +60,15 @@ const fluid: Volume = {
     const color = FACTS[volumeRoot(node).props.f as string][1]
     return color ? { shape: 'haze', color } : null
   },
+  // fusion, where a star is dense enough for it (its core): one proton in ten flashes now and then as it fuses
+  inner: node => {
+    const root = volumeRoot(node)
+    if (root.props.f !== 'plasma' || (root.props.d as number) < 3e31 || node.props.depth !== leafDepth(root)) return []
+    return childrenOf(node).filter((c, i) => c.kind === 'nucleon' && i % 20 === 0).map(c => ({ shape: 'sphere' as const, color: '#fff6c0', glow: true, flash: true, scale: c.size * 8, pos: c.pos, phase: (c.seed % 97) * 0.065 }))
+  },
   info: (_, node) => {
-    const [title, , fact] = FACTS[volumeRoot(node).props.f as string]
-    return { title, fact }
+    const { f, salt } = volumeRoot(node).props, [title, , fact] = FACTS[f as string]
+    return f === 'water' && !salt ? { title: 'Water', fact: 'Pure water, 33 molecules per cubic nanometre, drawn as a liquid whatever the real temperature.' } : { title, fact }
   },
 }
 

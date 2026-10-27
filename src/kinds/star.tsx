@@ -23,7 +23,6 @@ function Glow({ node }: { node: { props: Record<string, number | string>; metres
 
 const star: Volume = {
   leafDepth: root => Math.round(Math.log2(root.metres / BLOCK)),
-  open: (r, root) => (r.depth >= Math.round(Math.log2(root.metres / BLOCK)) ? 0.15 : 0.1),
   Near: Glow,
 
   // nucleon density: ~9 × 10³¹ per m³ at the Sun's core, ~10²³ at the photosphere
