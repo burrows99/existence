@@ -30,7 +30,7 @@ type Chunk = {
   data: Record<Batch, Float32Array>; count: Record<Batch, number>; owners: Partial<Record<Batch, (Node | null)[]>>
   at: Record<Batch, number>; slot: number; used: number
 }
-type Visible = { n: Node; rel: Vec3; s: number; chunk: Chunk }
+type Visible = { n: Node; rx: number; ry: number; rz: number; s: number; chunk: Chunk } // r: its centre from the focus, in top units
 type Pick = { solid?: Node; solidZ: number; open?: Node; openR: number; near?: Node; nearD: number }
 const chunks = new WeakMap<Node, Chunk>()
 const buildCost = new Map<string, number>() // ms a chunk of each kind has taken to build lately, to budget before opening one
@@ -393,9 +393,8 @@ export function World() {
             }
           } else { chunk.lo = lo; chunk.hi = hi } // same partition, maybe a wider range of spans for it
         }
-        const rel: Vec3 = [rx, ry, rz0]
-        visible.push({ n, rel, s, chunk })
-        if (kind.Near && (kind.nearFor?.(n) ?? true) && (!kind.nearOnPath || onPath.has(n.key)) && span >= (kind.nearMin ?? 0) && span < (kind.nearMax ?? Infinity)) nearList.push({ node: n, rel, s })
+        visible.push({ n, rx, ry, rz: rz0, s, chunk })
+        if (kind.Near && (kind.nearFor?.(n) ?? true) && (!kind.nearOnPath || onPath.has(n.key)) && span >= (kind.nearMin ?? 0) && span < (kind.nearMax ?? Infinity)) nearList.push({ node: n, rel: [rx, ry, rz0], s })
         // nearest first, so what the caps cut off is the far edge
         if (open.length > 1) open.sort((a, b) => (rx + s * a.pos[0]) ** 2 + (ry + s * a.pos[1]) ** 2 + (rz0 + s * a.pos[2]) ** 2 - (rx + s * b.pos[0]) ** 2 - (ry + s * b.pos[1]) ** 2 - (rz0 + s * b.pos[2]) ** 2)
         for (const c of open) visit(c, ox + s * c.pos[0], oy + s * c.pos[1], oz + s * c.pos[2], s * c.size)
@@ -446,7 +445,7 @@ export function World() {
         }
         if (c.slot < 0) continue
         const i = c.slot * 4
-        td[i] = v.rel[0] * k; td[i + 1] = v.rel[1] * k; td[i + 2] = v.rel[2] * k; td[i + 3] = v.s * k
+        td[i] = v.rx * k; td[i + 1] = v.ry * k; td[i + 2] = v.rz * k; td[i + 3] = v.s * k
       }
       if (f % 10 === 0) sweep(f - PERF.evictEvery, 500)
       for (const b of BATCHES) {
@@ -497,11 +496,11 @@ export function World() {
       const D = CAMERA_DISTANCE / k, pxPerUnit = size.height / w
       const pick: Pick = { solidZ: -Infinity, openR: Infinity, nearD: PERF.snapPx }
       for (const v of shown) {
-        const z = v.rel[0] * back.x + v.rel[1] * back.y + v.rel[2] * back.z
+        const z = v.rx * back.x + v.ry * back.y + v.rz * back.z
         if (z - v.s * 0.87 >= D) continue // wholly behind the camera (its centre may be, while things in it are not)
         if (z < D && !kindOf(v.n.kind)?.space) {
           const per = (D / (D - z)) * pxPerUnit
-          const x = v.rel[0] * right.x + v.rel[1] * right.y + v.rel[2] * right.z, y = v.rel[0] * up.x + v.rel[1] * up.y + v.rel[2] * up.z
+          const x = v.rx * right.x + v.ry * right.y + v.rz * right.z, y = v.rx * up.x + v.ry * up.y + v.rz * up.z
           const rpx = (v.s / 2) * per, dx = x * per - cx, dy = y * per - cy
           if (dx * dx + dy * dy < rpx * rpx && rpx < pick.openR) { pick.open = v.n; pick.openR = rpx }
         }
@@ -512,7 +511,7 @@ export function World() {
             const c = own[i]
             if (!c) continue
             const j = i * STRIDE
-            const p: Vec3 = [v.rel[0] + d[j] * v.s, v.rel[1] + d[j + 1] * v.s, v.rel[2] + d[j + 2] * v.s]
+            const p: Vec3 = [v.rx + d[j] * v.s, v.ry + d[j + 1] * v.s, v.rz + d[j + 2] * v.s]
             const pz = p[0] * back.x + p[1] * back.y + p[2] * back.z
             if (pz >= D) continue
             const pp = (D / (D - pz)) * pxPerUnit
