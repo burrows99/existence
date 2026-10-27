@@ -7,6 +7,7 @@ import { childrenOf, hash, inCell, mulberry32, type ChildSpec, type Far, type No
 import { PERF } from '../engine/perf'
 import { rootProps, volume, volumeRoot, type Region, type Volume } from './volume'
 import { starColor } from './star'
+import { SIDE as SOLAR } from './solar'
 
 export const LY = 9.461e15
 const SUN_R = 6.96e8
@@ -118,7 +119,7 @@ const galaxy: Volume = {
     const root = volumeRoot(leaf), S = shapeOf(root)
     const out: ChildSpec[] = []
     if (S.mw && Math.max(...[0, 1, 2].map(i => Math.abs(SUN_POS[i] - r.c[i]))) < r.s / 2) {
-      out.push({ kind: 'solar', pos: [0, 1, 2].map(i => (SUN_POS[i] - r.c[i]) / r.s) as Vec3, size: 1.496e13 / (r.s * S.metres), props: { ...rootProps } })
+      out.push({ kind: 'solar', pos: [0, 1, 2].map(i => (SUN_POS[i] - r.c[i]) / r.s) as Vec3, size: SOLAR / (r.s * S.metres), props: { ...rootProps } })
     }
     if (S.mw) { // the real stars that fall in this region (metres from the Sun)
       const side = r.s * S.metres, d = [0, 1, 2].map(i => (r.c[i] - SUN_POS[i]) * S.metres), fromSun = Math.hypot(d[0], d[1], d[2])

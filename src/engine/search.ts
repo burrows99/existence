@@ -87,7 +87,7 @@ function build(): Entry[] {
   const solar = nodeAt(SOLAR_KEY)
   if (solar) for (const c of childrenOf(solar).slice(8)) {
     const title = kindOf(c.kind)?.info(c).title ?? (c.kind === 'planet' ? PLANETS[c.props.p as number].name : c.kind === 'earth' ? 'Earth' : (c.props.name as string))
-    if (title && !out.some(e => e.name === title)) out.push(entry(title, c, c.kind === 'star' ? 'our star' : c.kind === 'earth' ? 'our planet' : 'planet', 1.5))
+    if (title && !out.some(e => e.name === title)) out.push(entry(title, c, c.kind === 'star' ? 'our star' : c.kind === 'earth' ? 'our planet' : PLANETS[c.props.p as number]?.what ?? 'planet', 1.5))
   }
   return out
 }

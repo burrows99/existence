@@ -67,8 +67,8 @@ const fluid: Volume = {
     return childrenOf(node).filter((c, i) => c.kind === 'nucleon' && i % 20 === 0).map(c => ({ shape: 'sphere' as const, color: '#fff6c0', glow: true, flash: true, scale: c.size * 8, pos: c.pos, phase: (c.seed % 97) * 0.065 }))
   },
   info: (_, node) => {
-    const [title, , fact] = FACTS[volumeRoot(node).props.f as string]
-    return { title, fact }
+    const { f, salt } = volumeRoot(node).props, [title, , fact] = FACTS[f as string]
+    return f === 'water' && !salt ? { title: 'Water', fact: 'Pure water, 33 molecules per cubic nanometre, drawn as a liquid whatever the real temperature.' } : { title, fact }
   },
 }
 
