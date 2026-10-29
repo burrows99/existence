@@ -53,12 +53,20 @@ export function Hud() {
   const node = useCam(s => s.node)
   const zoomTo = useCam(s => s.zoomTo)
   const loaded = useSyncExternalStore(subscribeKinds, kindsLoaded)
+  // inside something alive (the meadow) the facts change as you watch: refresh them every second
+  const [tick, setTick] = useState(0)
+  const live = useMemo(() => ancestry(node).some(n => kindOf(n.kind)?.version), [node, loaded])
+  useEffect(() => {
+    if (!live) return
+    const id = setInterval(() => setTick(t => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [live])
   // the breadcrumb only changes with the node (not every frame of a zoom): collapse runs of the same title (the
   // water octree), keeping the smallest
   const { info, marks } = useMemo(() => {
     const path = ancestry(node).map(n => ({ n, title: kindOf(n.kind)?.info(n).title ?? '…' }))
     return { info: kindOf(node.kind)?.info(node), marks: path.filter((p, i) => path[i + 1]?.title !== p.title) }
-  }, [node, loaded])
+  }, [node, loaded, tick])
   // labels sit at their true size but never closer than 2.4% of the ruler
   const tops = marks.map(m => pct(Math.log10(m.n.metres)))
   for (let i = 1; i < tops.length; i++) tops[i] = Math.max(tops[i], tops[i - 1] + 2.4)

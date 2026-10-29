@@ -50,9 +50,11 @@ export type Kind = {
   nearMin?: number // no Near until the node spans this fraction of the view (default 0)
   nearMax?: number // and no Near once the node spans more than this many views (deep inside it)
   space?: boolean // just a region of space: never something to lock on to
+  slab?: [number, number] // its own cutaway (front, depth, in views) while seen from no closer than a hundredth of its size
   deep?: boolean // nothing opaque in here (stars, galaxies): drawn as far behind the focus as beside it, not just the cutaway slab
   inside?: (node: Node, p: Vec3) => boolean // for space kinds: is a point (node units) inside the thing itself?
   jitter?: number // thermal / confinement motion amplitude, metres
+  version?: (node: Node) => number // its children move (a meadow of creatures): its chunk is rebuilt whenever this changes
   info: (node: Node) => { title: string; fact?: string }
 }
 
@@ -102,7 +104,7 @@ const LOADERS: Record<string, () => Promise<{ kinds: Record<string, Kind> }>> = 
   earth: () => import('../kinds/earth'),
   grain: () => import('../kinds/crystal'),
   fluid: () => import('../kinds/fluid'),
-  body: () => import('../kinds/body'),
+  meadow: () => import('../kinds/meadow'), organism: () => import('../kinds/meadow'),
   cell: () => import('../kinds/cell'),
   h2o: matter, n2: matter, o2: matter, h2: matter, co2: matter,
   molecule: () => import('../kinds/molecule'),

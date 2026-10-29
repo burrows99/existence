@@ -26,7 +26,7 @@ const STRIDE = 14 // floats per item: pos3 size1 color3 misc4 (minPx, jitter, ph
 // lo..hi: the node spans for which that partition still holds, so most frames need not look at the children at all;
 // at/slot: where it sits in the GPU buffers and the chunk texture while resident (-1 while not)
 type Chunk = {
-  sig: string; kids: Node[]; open: Node[]; lo: number; hi: number
+  sig: string; ver: number; kids: Node[]; open: Node[]; lo: number; hi: number
   data: Record<Batch, Float32Array>; count: Record<Batch, number>; owners: Partial<Record<Batch, (Node | null)[]>>
   at: Record<Batch, number>; slot: number; used: number
 }
@@ -195,7 +195,7 @@ const batchOf = (f: Far): Batch => (f.shape === 'haze' ? 'haze' : f.shape === 'c
 // the drawable items of a node's closed children (and its own inner ones), in the node's units
 const scratch = Object.fromEntries(BATCHES.map(b => [b, new Float32Array(1024 * STRIDE)])) as Record<Batch, Float32Array> // grown as needed
 const EMPTY = new Float32Array(0)
-function buildChunk(n: Node, kind: Kind, kids: Node[], closed: Node[], open: Node[], lo: number, hi: number, sig: string): Chunk {
+function buildChunk(n: Node, kind: Kind, kids: Node[], closed: Node[], open: Node[], lo: number, hi: number, sig: string, ver: number): Chunk {
   const len: Record<Batch, number> = { sphere: 0, haze: 0, cube: 0, box: 0, point: 0 }
   const owners: Partial<Record<Batch, (Node | null)[]>> = {}
   // rank: a sample is drawn while rank ≤ (span / open)³; detail (rank 1) once the node spans its detail threshold
@@ -226,7 +226,7 @@ function buildChunk(n: Node, kind: Kind, kids: Node[], closed: Node[], open: Nod
   }
   const data = {} as Record<Batch, Float32Array>, count = {} as Record<Batch, number>, at = {} as Record<Batch, number>
   for (const b of BATCHES) { data[b] = len[b] ? scratch[b].slice(0, len[b]) : EMPTY; count[b] = len[b] / STRIDE; at[b] = -1 }
-  return { sig, kids, open, lo, hi, data, count, owners, at, slot: -1, used: 0 }
+  return { sig, ver, kids, open, lo, hi, data, count, owners, at, slot: -1, used: 0 }
 }
 
 // ---- the component -----------------------------------------------------------------------------------------
@@ -241,6 +241,7 @@ export function World() {
   const still = useRef('') // the view the last walk was made for…
   const complete = useRef(false) // …and whether it got to generate everything it wanted
   const walked = useRef<Visible[]>([])
+  const movers = useRef<Visible[]>([]) // visible chunks of kinds whose children move: a change in one means walk again
   const pointer = useRef({ x: 0, y: 0 }) // px from the canvas centre, y up
   const wheel = useRef({ decades: 0, retarget: false, last: 0 })
   const tap = useRef({ x: 0, y: 0, at: 0, fly: false }) // a click (no drag) flies to whatever is under the cursor
@@ -323,10 +324,17 @@ export function World() {
     const w = 10 ** zoom / node.metres // view height in node units
     const k = VIEW / w // scene units per node unit
     const back = new Vector3(0, 0, 1).applyQuaternion(camera.quaternion)
+    // the cutaway slab: the default, or that of something being looked at as a whole (open ground is not cut)
+    let front = PERF.front, depth = PERF.depth
+    for (let a: Node | undefined = node; a; a = a.parent) {
+      const sl = kindOf(a.kind)?.slab
+      if (sl && a.metres / 10 ** zoom < 100) { [front, depth] = sl; break }
+    }
 
     // a view that has not moved since the last walk, with nothing left to generate, is redrawn from the same chunks
     const view = `${node.key}|${focus}|${zoom}|${size.width}x${size.height}|${camera.quaternion.toArray()}|${kindsLoaded()}`
-    if (view !== still.current || !complete.current) {
+    const moved = movers.current.some(v => v.chunk.ver !== kindOf(v.n.kind)!.version!(v.n))
+    if (view !== still.current || !complete.current || moved) {
       still.current = view
       const f = ++walks.current
       const onPath = new Set<string>()
@@ -334,7 +342,7 @@ export function World() {
       // what is in play: the screen rectangle (as wide as it gets at the back of the cutaway slab), the slab deep;
       // anything beyond is left to the coarse picture its ancestors' chunks draw of it
       const right = new Vector3(1, 0, 0).applyQuaternion(camera.quaternion), up = new Vector3(0, 1, 0).applyQuaternion(camera.quaternion)
-      const hx = PERF.margin * (size.width / size.height) * w, hy = PERF.margin * w, zf = (PERF.front + 0.05) * w, zb = (PERF.depth + 0.05) * w
+      const hx = PERF.margin * (size.width / size.height) * w, hy = PERF.margin * w, zf = (front + 0.05) * w, zb = (depth + 0.05) * w
       const reach = Math.hypot(hx, hy, zb)
       const gen: Record<string, number> = {}
       let generating = true, spent = 0 // ms of this walk spent generating (the walk itself can take as long again)
@@ -367,14 +375,15 @@ export function World() {
         const kids = childrenOf(n)
         if (!kids.length) return
         let chunk = chunks.get(n), open: Node[]
-        if (chunk && chunk.kids === kids && span > chunk.lo && span < chunk.hi) open = chunk.open // nothing crossed a threshold
+        const ver = kind.version?.(n) ?? 0
+        if (chunk && chunk.kids === kids && chunk.ver === ver && span > chunk.lo && span < chunk.hi) open = chunk.open // nothing crossed a threshold or moved
         else {
           const closed: Node[] = []
           let sig = '', lo = 0, hi = Infinity, reserved = 0 // ms the chunks of the children opened here will probably take
           open = []
           for (let i = 0; i < kids.length; i++) {
             const c = kids[i], ck = kindOf(c.kind)
-            if (!ck) { sig += 'x'; continue }
+            if (!ck) { sig += 'x'; hi = 0; continue } // its kind is still loading: not settled, look again next frame
             if (!ck.children) { closed.push(c); continue }
             // a child opens only once its own children exist (generated now if there is time) and there is time to
             // build its chunk; until then it stays closed, in this chunk, so nothing flips back and forth
@@ -399,12 +408,12 @@ export function World() {
             } else if (at < hi) hi = at
             closed.push(c)
           }
-          if (!chunk || chunk.sig !== sig || chunk.kids !== kids) {
+          if (!chunk || chunk.sig !== sig || chunk.kids !== kids || chunk.ver !== ver) {
             if (chunk && chunk.kids === kids && built > PERF.buildMs) { starved = true; open = chunk.open } // out of time: the old chunk stands
             else {
               const b0 = performance.now()
               if (chunk) drop(chunk)
-              chunks.set(n, (chunk = buildChunk(n, kind, kids, closed, open, lo, hi, sig)))
+              chunks.set(n, (chunk = buildChunk(n, kind, kids, closed, open, lo, hi, sig, ver)))
               const ms = performance.now() - b0
               built += ms
               builds++
@@ -422,6 +431,7 @@ export function World() {
       visit(top, o[0], o[1], o[2], s)
       complete.current = generating && !starved
       walked.current = visible
+      movers.current = visible.filter(v => kindOf(v.n.kind)?.version)
       if (import.meta.env.DEV) lastGen.current = { ...gen, _walk: performance.now() - w0 - spent - built, _gen: spent, _build: built, _builds: builds }
       if (f % PERF.evictEvery === 0) evict(root, f - PERF.evictEvery)
 
@@ -503,8 +513,8 @@ export function World() {
 
     const shown = walked.current
     gpu.uniforms.time.value = clock.elapsedTime
-    gpu.uniforms.front.value = PERF.front * w * k
-    gpu.uniforms.depth.value = PERF.depth * w * k
+    gpu.uniforms.front.value = front * w * k
+    gpu.uniforms.depth.value = depth * w * k
     gpu.uniforms.back.value.copy(back)
     gpu.uniforms.fovScale.value = size.height / (2 * Math.tan(MathUtils.degToRad(FOV / 2)))
     gpu.uniforms.proj.value = camera.projectionMatrix
