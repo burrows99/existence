@@ -77,12 +77,28 @@ export function centreIn(n: Node, frame: Node): Vec3 {
 const contains = (c: Node, p: Vec3) => Math.max(Math.abs(p[0] - c.pos[0]), Math.abs(p[1] - c.pos[1]), Math.abs(p[2] - c.pos[2])) / c.size
 const under = (goal: string, key: string) => goal === key || goal.startsWith(key + '.')
 
+let tracked: { key: string; node: Node; p: Vec3 } | null = null // where the goal was last frame
+
 // one frame of camera motion: ease zoom around the anchor, then re-root
 export function stepCamera(dt: number) {
   const s = useCam.getState()
   if (s.pending) return restore(s.pending)
   let { node, focus, anchor, zoom } = s
   const { goal } = s
+
+  // a goal that moves (a creature): the focus and the anchor ride along with it
+  if (goal && goal !== node.key && under(goal, node.key)) {
+    let g: Node | undefined = node
+    for (const i of goal.slice(node.key.length + 1).split('.')) g = g?.children?.[Number(i)]
+    if (g) {
+      const p = centreIn(g, node), t = tracked
+      if (t?.key === goal && t.node === node && (p[0] !== t.p[0] || p[1] !== t.p[1] || p[2] !== t.p[2])) {
+        focus = [focus[0] + p[0] - t.p[0], focus[1] + p[1] - t.p[1], focus[2] + p[2] - t.p[2]]
+        anchor = p
+      }
+      tracked = { key: goal, node, p }
+    }
+  }
 
   if (Math.abs(s.target - zoom) > 1e-5) {
     const next = MathUtils.damp(zoom, s.target, 6, dt)

@@ -28,6 +28,8 @@ export const TYPES: CellType[] = [
     fact: 'An alveolar cell, a fraction of a micron thin, where air is close enough to blood for oxygen to cross.' },
   { name: 'Gut cell', d: 20, color: '#c98a6a', mito: 300, nucleus: true, cytosol: [[M.UBIQUITIN, 2], [M.ATP, 4], [M.GLUCOSE, 4]],
     fact: 'An enterocyte lining the intestine, replaced every five days. It pulls glucose and amino acids out of your food.' },
+  { name: 'Grass cell', d: 40, color: '#6abf4b', mito: 200, nucleus: true, cytosol: [[M.GLUCOSE, 4], [M.ATP, 4], [M.UBIQUITIN, 1]],
+    fact: 'A mesophyll cell of a grass blade. Its chloroplasts, which turn sunlight into the sugar here, and its cellulose wall are not modelled yet.' },
 ]
 export const cubeOf = (t: number) => 1.2 * TYPES[t].d * 1e-6 // the cube a cell lives in, metres
 const R_CELL = 1 / 2.4 // cell radius as a fraction of its cube

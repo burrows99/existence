@@ -6,27 +6,26 @@ import { root } from './camera'
 import { CATALOGUE, MW_POS, at, mwPath } from '../kinds/universe'
 import { LY, STARS, SUN_POS, sunPath } from '../kinds/galaxy'
 import { EARTH_KEY as EARTH_IN_SOLAR, PLANETS } from '../kinds/solar'
-import { PERSON } from '../kinds/earth'
-import { Quaternion, Vector3 } from 'three'
+import { MEADOW } from '../kinds/earth'
+import { SLOTS } from '../kinds/life'
 
 export type Entry = { name: string; href: string; what: string }
 
 export const MW_KEY = `u.${mwPath()}`
 export const SOLAR_KEY = `${MW_KEY}.${sunPath()}`
 export const EARTH_KEY = `${SOLAR_KEY}.${EARTH_IN_SOLAR.slice(2)}`
-export const PERSON_KEY = `${EARTH_KEY}.${PERSON.path}`
-// a point in the right thigh's muscle, in body units: the figure (2 m cube, hips at the centre) stands along PERSON.up
-const MUSCLE = new Vector3(0.135, -0.22, 0).applyQuaternion(new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), new Vector3(...PERSON.up).normalize())).divideScalar(2).toArray().map(v => v.toFixed(4))
+export const MEADOW_KEY = `${EARTH_KEY}.${MEADOW.path}`
+const GRASS_KEY = `${MEADOW_KEY}.${SLOTS}` // the first tuft of grass: it stays put, so its insides can be landmarks
 export const LANDMARKS: [string, string][] = [
   ['Universe', '#at=u&z=26.95'],
   ['Milky Way', `#at=${MW_KEY}&z=21.2`],
   ['Solar system', `#at=${SOLAR_KEY}&z=13.1`],
   ['The Sun', `#at=${SOLAR_KEY}.8&z=9.3`],
   ['Earth', `#at=${EARTH_KEY}&z=7.25`],
-  ['A person', `#at=${PERSON_KEY}&z=0.35`],
-  ['A muscle cell', `#at=${PERSON_KEY}&f=${MUSCLE}&z=-4.8`],
-  ['Molecules', `#at=${PERSON_KEY}&f=${MUSCLE}&z=-8.4`],
-  ['Atoms', `#at=${PERSON_KEY}&f=${MUSCLE}&z=-9.6`],
+  ['Evolving life', `#at=${MEADOW_KEY}&z=0.95`],
+  ['A grass cell', `#at=${GRASS_KEY}&f=0.2,0,0&z=-4.4`],
+  ['Molecules', `#at=${GRASS_KEY}&f=0.2,0,0&z=-8.4`],
+  ['Atoms', `#at=${GRASS_KEY}&f=0.2,0,0&z=-9.6`],
 ]
 
 const toChild = (p: Vec3, c: Node): Vec3 => [(p[0] - c.pos[0]) / c.size, (p[1] - c.pos[1]) / c.size, (p[2] - c.pos[2]) / c.size]

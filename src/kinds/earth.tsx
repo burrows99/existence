@@ -1,10 +1,10 @@
 // Earth: layers by depth (hexagonal iron inner core, molten outer core, olivine mantle, quartz crust), the real
 // surface (NOAA ETOPO2 elevation: oceans where it is below sea level, ground where it is above, with the countries
-// of Natural Earth drawn on NASA's Blue Marble), air thinning for 100 km, and one person standing in France.
+// of Natural Earth drawn on NASA's Blue Marble), air thinning for 100 km, and a meadow of evolving creatures in the Galápagos.
 import { Suspense, useMemo } from 'react'
 import { useLoader } from '@react-three/fiber'
 import { BufferGeometry, Float32BufferAttribute, SRGBColorSpace, TextureLoader } from 'three'
-import { kindOf, type ChildSpec, type Node, type Vec3 } from '../engine/tree'
+import type { ChildSpec, Node, Vec3 } from '../engine/tree'
 import { PERF } from '../engine/perf'
 import { rootProps, volume, type Region, type Volume } from './volume'
 
@@ -12,7 +12,7 @@ const SIDE = 1.3e7 // metres
 const R = 6.371e6 / SIDE
 const KM = 1e3 / SIDE
 const LEAF_DEPTH = 43 // 1.48 µm blocks of rock, water or air
-const PLACE_DEPTH = 20 // 12.4 m regions; one of them holds the person
+const PLACE_DEPTH = 20 // 12.4 m regions; one of them holds the meadow
 const CORE_INNER = 1220 * KM, CORE_OUTER = 3480 * KM, CRUST = R - 30 * KM, SKY = R + 100 * KM
 
 type Material = 'space' | 'air' | 'water' | 'quartz' | 'forsterite' | 'melt' | 'iron'
@@ -58,28 +58,39 @@ export function materialAt(p: Vec3): Material {
   return 'quartz'
 }
 
-// the person: at 45° N on the Greenwich meridian (which is France), nudged along so the whole figure sits well
-// inside one 12 m region
-const UP: Vec3 = [0.707, 0.707, 0]
-export const PERSON = (() => {
-  const key: number[] = []
-  for (let lon = 0; lon < 1e-3; lon += 1e-7) {
-    const up: Vec3 = [Math.cos(Math.PI / 4) * Math.cos(lon), Math.sin(Math.PI / 4), Math.cos(Math.PI / 4) * Math.sin(lon)]
-    const c = up.map(u => u * (R + (elevationAt(up) + 0.87) / SIDE)) as Vec3 // hips 0.87 m above the ground
-    key.length = 0
+const xyz = (lat: number, lon: number, r: number): Vec3 => [r * Math.cos(lat) * Math.cos(lon), r * Math.sin(lat), -r * Math.cos(lat) * Math.sin(lon)]
+
+// the meadow (kinds/meadow.tsx): on Santa Cruz in the Galápagos, where the local vertical is within a degree of the
+// +z axis, so the meadow's ground can be the plane z = const. It is nudged along until the 7 m patch sits inside one
+// 12 m region with that plane on a boundary of the 1.5 m regions, within a centimetre of the real ground: the blocks
+// of rock under it are then flat at every scale you would see a creature at.
+export const MEADOW_M = 7
+export const MEADOW = (() => {
+  const D = PLACE_DEPTH, FLAT = PLACE_DEPTH + 3
+  const grid = (v: number, d = D) => (v + 0.5) * 2 ** d // region coordinates at depth d
+  const off = (v: number) => Math.abs(grid(v) - Math.floor(grid(v)) - 0.5) // from the middle of its region, in regions
+  const fits = 0.5 - (MEADOW_M / 2 / SIDE) * 2 ** D - 0.01, tol = 0.01 / (SIDE / 2 ** FLAT)
+  const at = (lat: number, lon: number) => {
+    const up = xyz(lat, lon, 1)
+    return up.map(u => u * (R + elevationAt(up) / SIDE)) as Vec3
+  }
+  let lat = (-0.62 * Math.PI) / 180
+  while (off(at(lat, (-90.36 * Math.PI) / 180)[1]) > fits - 0.05) lat += 1e-8
+  for (let lon = (-90.36 * Math.PI) / 180, i = 0; i < 3e5; lon += 1e-8, i++) {
+    const c = at(lat, lon), z = grid(c[2], FLAT)
+    if (off(c[0]) > fits || off(c[1]) > fits || off(c[2]) > fits || Math.abs(z - Math.round(z)) > tol || elevationAt(xyz(lat, lon, 1)) <= 0) continue
+    const centre: Vec3 = [c[0], c[1], Math.round(z) / 2 ** FLAT - 0.5] // the ground, on the boundary
+    const key: number[] = []
     let o: Vec3 = [0, 0, 0], s = 1
-    for (let d = 0; d < PLACE_DEPTH; d++) {
-      const ix = c[0] >= o[0] ? 1 : 0, iy = c[1] >= o[1] ? 1 : 0, iz = c[2] >= o[2] ? 1 : 0
+    for (let d = 0; d < D; d++) {
+      const ix = centre[0] >= o[0] ? 1 : 0, iy = centre[1] >= o[1] ? 1 : 0, iz = centre[2] >= o[2] ? 1 : 0
       key.push(4 * ix + 2 * iy + iz)
       s /= 2
       o = [o[0] + (ix - 0.5) * s, o[1] + (iy - 0.5) * s, o[2] + (iz - 0.5) * s]
     }
-    if (Math.max(...[0, 1, 2].map(i => Math.abs(c[i] - o[i]))) < s / 2 - 1.2 / SIDE) {
-      UP[0] = up[0]; UP[1] = up[1]; UP[2] = up[2]
-      return { centre: c, up, path: `${key.join('.')}.8` } // child indices from the Earth node down to the body
-    }
+    return { centre, path: `${key.join('.')}.8` } // child indices from the Earth node down to the meadow
   }
-  throw new Error('no room for a person')
+  throw new Error('no room for the meadow')
 })()
 
 const HAZE: Record<Material, string> = { space: '', air: '', water: '#1e5aa8', quartz: '#b8b0a0', forsterite: '#7a8a3a', melt: '#c05a2a', iron: '#8a8a95' }
@@ -95,7 +106,6 @@ const FACTS: Record<Material, [string, string]> = {
 
 // NASA's Blue Marble on a sphere with the real relief (bump-shaded, and raised at true scale), the countries'
 // outlines, and a thin blue atmosphere
-const xyz = (lat: number, lon: number, r: number): Vec3 => [r * Math.cos(lat) * Math.cos(lon), r * Math.sin(lat), -r * Math.cos(lat) * Math.sin(lon)]
 function Globe() {
   const [map, relief] = useLoader(TextureLoader, [DATA + 'blue-marble.jpg', DATA + 'elevation.png'])
   map.colorSpace = SRGBColorSpace
@@ -132,19 +142,15 @@ const earth: Volume = {
   nearMax: SIDE / 300e3, // the globe's pixels are 20 km wide: closer than that the rock itself is the ground
 
   placements: r => {
-    const c = PERSON.centre
+    const c = MEADOW.centre
     if (Math.max(...[0, 1, 2].map(i => Math.abs(c[i] - r.c[i]))) > r.s / 2) return []
-    return [{ kind: 'body', pos: [0, 1, 2].map(i => (c[i] - r.c[i]) / r.s) as Vec3, size: 2 / (r.s * SIDE), props: { ...rootProps, ux: PERSON.up[0], uy: PERSON.up[1], uz: PERSON.up[2] } }]
+    return [{ kind: 'meadow', pos: [0, 1, 2].map(i => (c[i] - r.c[i]) / r.s) as Vec3, size: MEADOW_M / (r.s * SIDE) }]
   },
 
-  // a leaf is one block of whatever is here, unless the person is standing in it
-  fill: (r, _rng, leaf) => {
+  // a leaf is one block of whatever is here
+  fill: (r, _rng) => {
     const m = materialAt(r.c)
     if (m === 'space') return []
-    let a = leaf.parent
-    while (a && a.props.depth !== PLACE_DEPTH) a = a.parent
-    const body = a?.children?.[8]
-    if (body && kindOf('body')?.inside?.(body, [0, 1, 2].map(i => (r.c[i] - (regionCentre(a!)[i] + body.pos[i] * (a!.props.s as number))) / (body.size * (a!.props.s as number))) as Vec3)) return []
     const block = (kind: string, props: Record<string, number | string>): ChildSpec[] => [{ kind, pos: [0, 0, 0], size: 1, props: { ...rootProps, ...props } }]
     if (m === 'air') return block('fluid', { f: 'air', d: Math.exp(-((len(r.c) - R) / (8.5 * KM))) })
     if (m === 'water') return block('fluid', { f: 'water', salt: 0.6 })
@@ -157,7 +163,7 @@ const earth: Volume = {
     if (r.depth < 10) return null // coarser than 13 km the globe itself is the picture
     let m = materialAt(r.c)
     if (m === 'air') { // a block whose middle is in the air but whose floor is ground or sea is drawn as that floor
-      const d = len(r.c), k = 1 - r.s / (2 * d)
+      const d = len(r.c), k = 1 - (0.4 * r.s) / d // just above its floor: a block resting on the ground is air
       m = materialAt([r.c[0] * k, r.c[1] * k, r.c[2] * k])
     }
     const color = HAZE[m]
@@ -165,7 +171,7 @@ const earth: Volume = {
   },
 
   info: (r, node) => {
-    if (r.depth < 8) return { title: 'Earth', fact: '12,742 km across. A hot iron core, a mantle of slowly creeping rock, a thin crust, oceans 4 km deep and 100 km of air, with one person standing in France.' }
+    if (r.depth < 8) return { title: 'Earth', fact: '12,742 km across. A hot iron core, a mantle of slowly creeping rock, a thin crust, oceans 4 km deep and 100 km of air, with a meadow of evolving creatures in the Galápagos.' }
     let out = infos.get(node)
     if (out) return out
     const d = len(r.c), dir: Vec3 = [r.c[0] / d, r.c[1] / d, r.c[2] / d], h = elevationAt(dir)
@@ -183,7 +189,6 @@ const earth: Volume = {
     return out
   },
 }
-const regionCentre = (n: { props: Record<string, number | string> }): Vec3 => [n.props.x as number, n.props.y as number, n.props.z as number]
 
 export const kinds = { earth: volume(earth) }
 export type { Region }

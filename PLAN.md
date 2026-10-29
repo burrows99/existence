@@ -3,8 +3,8 @@
 A universe you can zoom into **anywhere**, where everything is genuinely made of the level below it:
 
 ```
-observable universe → superclusters → galaxies → stars → planets → surface → human
-→ organs → tissues → cells → organelles → molecules → atoms → nucleus + electrons
+observable universe → superclusters → galaxies → stars → planets → surface → life
+→ creatures → tissues → tissues → cells → organelles → molecules → atoms → nucleus + electrons
 → protons + neutrons → quarks
 ```
 
@@ -104,6 +104,7 @@ Each phase is one PR against `main`, merged = live on https://burrows99.github.i
 | **G. Galaxy → universe** ✅ | The Milky Way as an exponential disc with two spiral arms and a bulge, stars drawn from the Kroupa initial mass function at the local density (each a real plasma volume), the solar system 26,000 ly out; the observable universe as a cosmic web of galaxies from a noise field with the Milky Way at the centre, Andromeda 2.5 Mly away, and the CMB sphere at the edge. Not yet: real star catalogues (HYG), real galaxy surveys, dark matter, the interstellar medium. |
 | **H. Polish** | ✅ Performance: the chunked, impostor-sphere renderer above, budgeted rebuilds and GPU-resident chunks (every landmark at the display's refresh rate; zooming at 110–120 fps). ✅ Real Earth (ETOPO2 relief, Blue Marble, country borders), HYG stars, real galaxies/clusters/voids. ✅ Search box over everything named. Still to do: a guided tour, touch/pinch on phones, smoother star-field LOD, body tissue as cubes up close. |
 | **H2. What is known** | Fill in the rest of what astronomy knows, each thing made of its parts: the solar system's dwarf planets, moons, asteroid and Kuiper belts; the Milky Way's black holes, neutron stars, nebulae (as gas), star clusters (as denser stars), arms and bubbles; the universe's groups, superclusters, walls, voids, quasars and the most distant galaxies; and, at the atomic end, the Sun's plasma fusing (hydrogen to helium) rather than standing still. Exoplanets around the nearby stars (NASA Exoplanet Archive) next. |
+| **J. Evolving life** ✅ | The person is gone; in their place, a 6 m meadow on Santa Cruz (Galápagos) where creatures evolve (`src/kinds/life.ts`, simulated where you look). Each creature has a brain of 9 senses → 8 tanh neurons → turn and run (98 weights), energy reserves ∝ mass (its life bar), Kleiber's ¾-power metabolism, size-limited speed and lifespan; it grazes 36 regrowing tufts of grass, eats creatures at least 1.25× smaller, breeds when 75% full (young inherit brain, size and hue with mutations), and dies starved, eaten or old. Energy is the only reward, so selection is natural: predator–prey cycles and size drift emerge, and `npm test` checks that evolved brains out-forage random ones. Every creature is a node that moves (`Kind.version` rebuilds the meadow's chunk as they do; the camera rides along with a moving goal) made of skin, fat, muscle and brain tissue packed with real cells; grass is grass cells. Time stops when you zoom inside a creature. Not yet: limbs and real body plans, sexual reproduction, sound/smell senses, a running chart of the population. |
 | **I. Multiverse** | Sibling universes as seeds; clearly labelled as hypothesis. |
 
 ## Non-goals (honest limits)
